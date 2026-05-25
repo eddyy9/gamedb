@@ -35,13 +35,14 @@
 
 | Аспект | Решение |
 |--------|---------|
-| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE на таблицах приложения. SQL для создания — ниже. |
+| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE. SQL для создания — ниже. |
 | SECRET_KEY | `secrets.token_hex(32)`, хранится в `.env`. |
-| Сессионные куки | `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE` через `.env` (false dev / true prod). |
+| Сессионные куки | `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE` через `.env`. |
 | Хэширование паролей | Werkzeug `generate_password_hash` / `check_password_hash`. |
 | Ошибка входа | Обобщённое «Неверный логин или пароль» — не раскрывает, что именно неверно. |
-| Валидация | `validators.py`: username, email, password, score, search_query. |
-| CSRF | Пока не добавлен — при добавлении форм расчётов добавить Flask-WTF или ручной CSRF-токен в сессии. |
+| Валидация ввода | `validators.py`: username, email, password, score, search_query, safe_int. |
+| **CSRF** | Реализован вручную через сессионный токен. `get_csrf_token()` генерирует `token_hex(32)` при первом рендере, сохраняет в `session["csrf_token"]`. Проверка в `@app.before_request` через `hmac.compare_digest` (постоянное время, защита от timing-атак). Токен прокидывается во все шаблоны через `inject_csrf` context_processor. Все POST-формы содержат скрытое поле `csrf_token`. GET-формы (поиск, фильтры) не проверяются. Flask-WTF не понадобился. |
+| Фильтры по id | `safe_int()` в validators.py строго приводит к `int >= 1` или None; никакой склейки строк SQL. |
 
 ---
 
@@ -49,11 +50,11 @@
 
 | Проблема | Причина | Решение |
 |----------|---------|---------|
-| `python` не работал в терминале | Windows Store-заглушка | Отключили псевдонимы запуска |
+| `python` не работал | Windows Store-заглушка | Отключили псевдонимы запуска |
 | `python`/`psql` не находились | Пути не в PATH | Добавили Python313, Scripts, PostgreSQL\17\bin |
 | `psql` не работал в новой сессии | PATH только для новых процессов | `$env:Path = [Environment]::GetEnvironmentVariable(...)` |
-| Пароль psql спрашивался интерактивно | psql требует ввода | `$env:PGPASSWORD = "..."` |
-| Дубль ссылки в game_store_links | Phase 2 SQL и seed_delta оба вставили Dishonored | Дубль удалён; seed_delta с `NOT EXISTS`-проверкой |
+| Пароль psql спрашивался | psql требует ввода | `$env:PGPASSWORD = "..."` |
+| Дубль ссылки в game_store_links | Phase 2 SQL и seed_delta оба вставили Dishonored | Дубль удалён; seed_delta с `NOT EXISTS` |
 
 ---
 
@@ -61,28 +62,25 @@
 
 ```
 проект БД/
-├── app.py               # Flask-маршруты: /, /game/<id>, /search,
+├── app.py               # Маршруты: /, /game/<id>, /search, /profile,
 │                        #   /register, /login, /logout, /rate/<id>
-├── db.py                # Слой БД: все SQL-функции
-├── validators.py        # Серверная валидация ввода
+│                        # CSRF: get_csrf_token(), check_csrf(), inject_csrf
+├── db.py                # Весь SQL: 12 функций
+├── validators.py        # Валидация: 6 функций + safe_int
 ├── schema.sql           # DDL 12 таблиц
 ├── seed.sql             # Канонические данные (8 игр, чистая БД)
 ├── seed_delta.sql       # Дельта для существующей БД
 ├── requirements.txt
-├── .env                 # Конфиг (не в git)
-├── .env.example
-├── .gitignore
-├── README.md
-├── PROJECT_LOG.md
+├── .env / .env.example / .gitignore / README.md / PROJECT_LOG.md
 ├── templates/
-│   ├── base.html        # Навигация (user/login/register) + флэш
-│   ├── index.html       # Каталог + поиск
-│   ├── game.html        # Карточка игры, оценки, похожие игры
+│   ├── base.html        # Nav (user -> /profile | login/reg) + flash + CSRF logout
+│   ├── index.html       # Каталог + поиск + фильтры жанр/тег
+│   ├── game.html        # Карточка + оценки + похожие + CSRF rate
 │   ├── search.html      # Результаты поиска
-│   ├── register.html    # Форма регистрации
-│   └── login.html       # Форма входа
-└── static/
-    └── style.css
+│   ├── profile.html     # Профиль: статистика + список оценённых игр
+│   ├── register.html    # Форма + CSRF
+│   └── login.html       # Форма + CSRF
+└── static/style.css
 ```
 
 ---
@@ -94,11 +92,16 @@
 | `get_all_games()` | Все игры с dev/pub |
 | `get_game_by_id(id)` | Карточка + жанры/теги/платформы/оценка/ссылки |
 | `search_games(query)` | ILIKE по title |
+| `get_all_genres()` | Все жанры для фильтра |
+| `get_all_tags()` | Все теги для фильтра |
+| `get_games_filtered(genre_id, tag_id)` | LEFT JOIN с ON-фильтром + WHERE IS NULL-трюк |
 | `create_user(u, e, ph)` | INSERT users, RETURNING user_id |
-| `get_user_by_username(u)` | Для логина (включает password_hash) |
-| `get_user_by_id(id)` | Для сессии (без хэша) |
+| `get_user_by_username(u)` | Для логина (password_hash включён) |
+| `get_user_by_id(id)` | Для сессии (без хэша, включает created_at) |
+| `get_user_ratings(uid)` | Оценённые игры, ORDER BY score DESC |
+| `get_user_stats(uid)` | COUNT + ROUND AVG оценок |
 | `set_rating(uid, gid, score)` | INSERT ON CONFLICT DO UPDATE |
-| `get_user_rating(uid, gid)` | Оценка пользователя или None |
+| `get_user_rating(uid, gid)` | Оценка пользователя для одной игры |
 | `get_similar_games(gid, limit)` | JOIN по game_tags, ORDER BY shared_tags DESC |
 
 ---
@@ -117,27 +120,50 @@
 
 ---
 
+## Идеи рекомендаций (на будущее, не реализовано)
+
+### 1. Персональные рекомендации на главной (контентная фильтрация)
+
+**Идея — user-based рекомендации с профилем вкуса:**
+1. Для каждого тега вычислить «симпатию» пользователя = средневзвешенная оценок за игры с этим тегом.
+2. Кандидаты = игры, которые пользователь не оценивал.
+3. Для каждого кандидата: рейтинг = сумма (симпатия_тега × количество_этого_тега_у_игры).
+4. Показать топ-4 по рейтингу.
+5. При малом числе оценок (< 3) — запасной вариант: **глобальный топ** (игры с наивысшей средней оценкой от всех пользователей).
+
+Это user-based контентная фильтрация; текущие «похожие игры» — item-based (схожесть игр, а не вкусов). Реализация — только в db.py, новых таблиц не нужно.
+
+### 2. «Что-то новое» — исследование слепых зон
+
+**Идея:** показывать жанры/теги, в которых пользователь ещё не оценивал игры (или оценивал мало), и выводить хорошо оценённые **другими** игры оттуда.
+
+- **Дёшевая версия** (только ratings, новых таблиц нет): `LEFT JOIN` через `ratings` пользователя → найти теги без оценок → лучшие чужие оценки.
+- **Версия с кликами:** потребует отдельной таблицы-журнала просмотров/кликов (`game_views`). Отложено — добавит нагрузку на БД и нужна отдельная оценка целесообразности.
+
+---
+
 ## Текущее состояние проекта
 
-**Этап: Каталог + Аутентификация + Оценки.**
+**Этап: Каталог + Аутентификация + Оценки + Профиль + CSRF + Фильтры.**
 
-- [x] Git инициализирован, 6 коммитов
+- [x] Git: 10 коммитов
 - [x] 12 таблиц, 8 игр, Steam-ссылки
-- [x] `/` — каталог, форма поиска
-- [x] `/game/<id>` — карточка, оценки 1–10, похожие игры по тегам, кнопка «Купить»
+- [x] `/` — каталог с поиском и фильтрами (жанр / тег)
+- [x] `/game/<id>` — карточка, оценки 1–10, похожие игры, кнопка «Купить»
 - [x] `/search?q=...` — ILIKE-поиск
-- [x] `/register`, `/login`, `/logout` — регистрация, вход, выход
-- [x] `/rate/<id>` — оценка игры (только для авторизованных)
-- [x] `current_user` во всех шаблонах через context_processor
-- [x] Флэш-сообщения (success / error / info)
+- [x] `/register`, `/login`, `/logout` — полная аутентификация
+- [x] `/rate/<id>` — оценка (только авторизованным)
+- [x] `/profile` — статистика, список оценённых игр
+- [x] CSRF: сессионный токен + `hmac.compare_digest` в `before_request`
+- [x] Фильтры каталога: жанр + тег (параметризованный SQL, `safe_int`)
 
 **Проверить вручную:**
-1. Регистрация `/register` → автовход → флэш «Добро пожаловать!»
-2. Выход → Войти `/login` → флэш «С возвращением»
-3. Карточка игры → кнопки 1–10, нажать — оценка сохраняется (кнопка подсвечивается)
-4. Средняя оценка в бейдже обновляется после следующего входа на страницу
-5. Похожие игры: Dishonored → Dark Souls III, Hades, Hollow Knight, Sekiro (общие теги: dark, atmospheric)
-6. Незалогиненный пользователь на `/game/<id>` видит «Войдите, чтобы оценить»
+1. `/` → фильтр «RPG» → 4 игры (Witcher 3, Cyberpunk, Dark Souls III, Hades)
+2. `/` → фильтр «RPG» + тег «dark» → 2 игры (Witcher 3, Dark Souls III)
+3. `/` → редкий тег → «По выбранным фильтрам ничего не найдено»
+4. Зарегистрироваться → оценить 3 игры → `/profile` → статистика обновилась
+5. Попытка POST без CSRF (curl/Postman) → HTTP 400
+6. `/profile` без входа → redirect на `/login` с флэшем
 
 ---
 
@@ -159,14 +185,13 @@ GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO gamedb_app;
 ## Следующие шаги (в порядке приоритета)
 
 ### Ближайшие (следующая сессия)
-1. **Страница профиля** `/profile` — список оценённых игр пользователя, дата регистрации.
-2. **CSRF-защита** — добавить токен в формы (login, register, rate, logout) через скрытое поле + проверку в сессии. Или подключить Flask-WTF.
-3. **Пагинация каталога** — когда игр больше 20 (сейчас 8, добавим).
+1. **Персональные рекомендации** на главной (Идея 1 из раздела выше): профиль вкуса по тегам, запасной вариант — глобальный топ.
+2. **Пагинация каталога** — нужна, когда игр > 20 (сейчас 8, можно добавить ещё).
 
 ### Средняя очередь
-4. Фильтры каталога по жанру / платформе / тегу.
-5. Текстовые отзывы (`reviews`).
-6. Достижения (`achievements`).
+3. Текстовые отзывы (`reviews`): форма на `/game/<id>`, таблица, вывод под описанием.
+4. Сортировка каталога (по дате, по оценке, по названию).
+5. Достижения (`achievements`).
 
 ---
 
@@ -190,3 +215,7 @@ python app.py
 | `c68e5a2` | `feat: game detail page, search, updated catalog` |
 | `9b43cf2` | `docs: update project log after session 2` |
 | `80704bb` | `feat: user auth, ratings, similar games by tags` |
+| `ffeb444` | `docs: update project log after session 3` |
+| `e68db51` | `feat: user profile page /profile` |
+| `6d3c907` | `feat: CSRF protection via session token + before_request` |
+| `2bc9dce` | `feat: catalog filters by genre and tag` |
