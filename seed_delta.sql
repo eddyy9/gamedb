@@ -198,7 +198,12 @@ WHERE g.title = 'Sekiro: Shadows Die Twice' AND t.name IN ('dark','challenging',
 -- -------------------------------------------------------------
 INSERT INTO game_store_links (game_id, store_name, url)
 SELECT game_id, 'Steam', 'https://store.steampowered.com/app/205100/Dishonored/'
-FROM games WHERE title = 'Dishonored';
+FROM games WHERE title = 'Dishonored'
+  AND NOT EXISTS (
+    SELECT 1 FROM game_store_links
+    WHERE game_id = (SELECT game_id FROM games WHERE title = 'Dishonored')
+      AND store_name = 'Steam'
+  );
 
 -- Ссылки Steam для новых игр
 INSERT INTO game_store_links (game_id, store_name, url)
