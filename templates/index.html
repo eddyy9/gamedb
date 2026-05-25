@@ -5,6 +5,37 @@
 {% block content %}
 <h1>Каталог игр</h1>
 
+{# ── Рекомендации ───────────────────────────────────────────── #}
+{% if recommendations %}
+<section class="recommendations">
+    <h2>
+        🎮 Рекомендуем вам
+        <span class="rec-subtitle">
+            {% if recommendations[0].source == 'personal' %}
+                — На основе ваших оценок
+            {% else %}
+                — Популярное сейчас
+            {% endif %}
+        </span>
+    </h2>
+    <div class="similar-grid rec-grid">
+        {% for rec in recommendations %}
+        <a href="{{ url_for('game_detail', game_id=rec.game_id) }}" class="similar-card">
+            <span class="similar-title">{{ rec.title }}</span>
+            {% if rec.developer %}
+            <span class="similar-dev">{{ rec.developer }}</span>
+            {% endif %}
+            {% if rec.source == 'personal' %}
+            <span class="similar-tags">✨ лично для вас</span>
+            {% elif rec.avg_score %}
+            <span class="similar-tags">⭐ {{ rec.avg_score }} / 10</span>
+            {% endif %}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
 {# ── Поиск ─────────────────────────────────────────────────── #}
 <form class="search-form" action="{{ url_for('search') }}" method="get">
     <input type="text" name="q" placeholder="Поиск по названию…" class="search-input">

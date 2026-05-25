@@ -82,12 +82,21 @@ def index():
     genres = db.get_all_genres()
     tags   = db.get_all_tags()
 
+    # Рекомендации: персональные для авторизованных, global top для гостей
+    user_id = session.get("user_id")
+    if user_id:
+        recommendations = db.get_recommendations(user_id, limit=4)
+    else:
+        recommendations = [dict(r, source="global")
+                           for r in db.get_global_top(limit=4)]
+
     return render_template("index.html",
                            games=games,
                            genres=genres,
                            tags=tags,
                            selected_genre=genre_id,
-                           selected_tag=tag_id)
+                           selected_tag=tag_id,
+                           recommendations=recommendations)
 
 
 # ── Карточка игры ─────────────────────────────────────────────

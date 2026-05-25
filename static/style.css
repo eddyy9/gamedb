@@ -345,6 +345,22 @@ h2 { font-size: 1.25rem; color: #a89dff; margin-bottom: 0.8rem; }
 .auth-alt a { color: #6c63ff; text-decoration: none; }
 .auth-alt a:hover { text-decoration: underline; }
 
+/* ── Рекомендации ───────────────────────────────────────────── */
+.recommendations {
+    margin-bottom: 2.5rem;
+    padding-bottom: 2rem;
+    border-bottom: 1px solid #2a2a4a;
+}
+.recommendations h2 { margin-bottom: 0.75rem; }
+.rec-subtitle {
+    font-size: 0.85rem;
+    font-weight: 400;
+    color: #9090b0;
+}
+.rec-grid {
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+}
+
 /* ── Фильтры каталога ───────────────────────────────────────── */
 .filter-form {
     display: flex;

@@ -343,3 +343,118 @@ def get_similar_games(game_id, limit=4):
         with conn.cursor() as cur:
             cur.execute(sql, (game_id, game_id, limit))
             return cur.fetchall()
+
+
+def get_global_top(limit=4):
+    """Игры с наивысшей средней оценкой от всех пользователей.
+    При равенстве AVG — больше оценок выше (ORDER BY avg DESC, count DESC).
+    Запасной вариант для холодного старта.
+    """
+    sql = """
+        SELECT
+            g.game_id,
+            g.title,
+            d.name                 AS developer,
+            ROUND(AVG(r.score), 1) AS avg_score,
+            COUNT(r.score)         AS ratings_count
+        FROM games g
+        JOIN ratings r USING (game_id)
+        LEFT JOIN developers d USING (developer_id)
+        GROUP BY g.game_id, g.title, d.name
+        ORDER BY avg_score DESC, ratings_count DESC
+        LIMIT %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (limit,))
+            return cur.fetchall()
+
+
+def get_recommendations(user_id, limit=4):
+    """Персональные рекомендации по профилю вкуса пользователя.
+
+    Алгоритм:
+      1. Если у пользователя < 3 оценок → вернуть global top (холодный старт).
+      2. Иначе: CTE-запрос taste/candidates/scored — tag-affinity scoring
+         (affinity = AVG(score) - 5.5 по каждому тегу).
+      3. Если personal-результатов < limit — дополнить global top, исключая
+         уже показанные и оценённые игры.
+    Каждая строка получает поле source = 'personal' | 'global'.
+    """
+    # Считаем оценки пользователя
+    count_sql = "SELECT COUNT(*) AS cnt FROM ratings WHERE user_id = %s"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(count_sql, (user_id,))
+            cnt = cur.fetchone()["cnt"]
+
+    if cnt < 3:
+        rows = get_global_top(limit)
+        return [dict(r, source="global") for r in rows]
+
+    # Персональные рекомендации через CTE
+    personal_sql = """
+        WITH taste AS (
+            SELECT gt.tag_id,
+                   AVG(r.score) - 5.5 AS affinity
+            FROM ratings r
+            JOIN game_tags gt ON gt.game_id = r.game_id
+            WHERE r.user_id = %s
+            GROUP BY gt.tag_id
+        ),
+        candidates AS (
+            SELECT g.game_id
+            FROM games g
+            WHERE NOT EXISTS (
+                SELECT 1 FROM ratings r
+                WHERE r.user_id = %s AND r.game_id = g.game_id
+            )
+        ),
+        scored AS (
+            SELECT c.game_id,
+                   SUM(t.affinity) AS rec_score
+            FROM candidates c
+            JOIN game_tags gt ON gt.game_id = c.game_id
+            JOIN taste     t  ON t.tag_id   = gt.tag_id
+            GROUP BY c.game_id
+        )
+        SELECT
+            g.game_id,
+            g.title,
+            d.name      AS developer,
+            s.rec_score
+        FROM scored s
+        JOIN games g ON g.game_id = s.game_id
+        LEFT JOIN developers d USING (developer_id)
+        ORDER BY s.rec_score DESC
+        LIMIT %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(personal_sql, (user_id, user_id, limit))
+            personal = [dict(r, source="personal") for r in cur.fetchall()]
+
+    if len(personal) >= limit:
+        return personal
+
+    # Дополняем global top, исключая уже показанные и оценённые игры
+    shown_ids = {r["game_id"] for r in personal}
+
+    rated_sql = "SELECT game_id FROM ratings WHERE user_id = %s"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(rated_sql, (user_id,))
+            rated_ids = {r["game_id"] for r in cur.fetchall()}
+
+    exclude_ids = shown_ids | rated_ids
+    need = limit - len(personal)
+
+    # Берём global top с запасом и фильтруем в Python
+    top_rows = get_global_top(limit + len(exclude_ids))
+    padding = [
+        dict(r, source="global")
+        for r in top_rows
+        if r["game_id"] not in exclude_ids
+    ][:need]
+
+    return personal + padding
