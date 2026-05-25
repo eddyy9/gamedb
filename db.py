@@ -303,8 +303,8 @@ def get_games_filtered(genre_id=None, tag_id=None):
         LEFT JOIN publishers  p USING (publisher_id)
         LEFT JOIN game_genres gg ON g.game_id = gg.game_id AND gg.genre_id = %s
         LEFT JOIN game_tags   gt ON g.game_id = gt.game_id AND gt.tag_id   = %s
-        WHERE (%s IS NULL OR gg.genre_id IS NOT NULL)
-          AND (%s IS NULL OR gt.tag_id   IS NOT NULL)
+        WHERE (%s::int IS NULL OR gg.genre_id IS NOT NULL)
+          AND (%s::int IS NULL OR gt.tag_id   IS NOT NULL)
         ORDER BY g.title
     """
     with get_connection() as conn:
