@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+
+{% block title %}
+    {% if query %}Поиск: {{ query }}{% else %}Поиск{% endif %} — GameDB
+{% endblock %}
+
+{% block content %}
+<h1>🔍 Поиск игр</h1>
+
+<form class="search-form" action="{{ url_for('search') }}" method="get">
+    <input type="text" name="q" value="{{ query }}"
+           placeholder="Название игры…" class="search-input" autofocus>
+    <button type="submit" class="btn-search">Найти</button>
+</form>
+
+{% if query %}
+    {% if games %}
+    <p class="search-info">
+        Найдено: <strong>{{ games | length }}</strong>
+        {% set n = games | length %}
+        {% if n % 10 == 1 and n % 100 != 11 %}игра
+        {% elif n % 10 in [2,3,4] and n % 100 not in [12,13,14] %}игры
+        {% else %}игр{% endif %}
+        по запросу «{{ query }}»
+    </p>
+
+    <div class="game-grid">
+        {% for game in games %}
+        <div class="game-card">
+            <h2 class="game-title">
+                <a href="{{ url_for('game_detail', game_id=game.game_id) }}"
+                   class="game-link">{{ game.title }}</a>
+            </h2>
+            <div class="game-meta">
+                {% if game.release_date %}
+                <span>📅 {{ game.release_date.strftime('%Y') }}</span>
+                {% endif %}
+                {% if game.developer %}
+                <span>🛠 {{ game.developer }}</span>
+                {% endif %}
+                {% if game.publisher %}
+                <span>📦 {{ game.publisher }}</span>
+                {% endif %}
+            </div>
+            {% if game.description %}
+            <p class="game-desc">{{ game.description }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+
+    {% else %}
+    <p class="empty">По запросу «{{ query }}» ничего не найдено.</p>
+    {% endif %}
+{% endif %}
+{% endblock %}

@@ -5,11 +5,19 @@
 {% block content %}
 <h1>Каталог игр</h1>
 
+<form class="search-form" action="{{ url_for('search') }}" method="get">
+    <input type="text" name="q" placeholder="Поиск по названию…" class="search-input">
+    <button type="submit" class="btn-search">🔍 Найти</button>
+</form>
+
 {% if games %}
     <div class="game-grid">
         {% for game in games %}
         <div class="game-card">
-            <h2 class="game-title">{{ game.title }}</h2>
+            <h2 class="game-title">
+                <a href="{{ url_for('game_detail', game_id=game.game_id) }}"
+                   class="game-link">{{ game.title }}</a>
+            </h2>
             <div class="game-meta">
                 {% if game.release_date %}
                     <span>📅 {{ game.release_date.strftime('%Y') }}</span>

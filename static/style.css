@@ -9,7 +9,7 @@ body {
     flex-direction: column;
 }
 
-/* Навигация */
+/* ── Навигация ─────────────────────────────────────────────── */
 .navbar {
     background: #1a1a2e;
     padding: 1rem 2rem;
@@ -23,7 +23,7 @@ body {
     letter-spacing: 0.05em;
 }
 
-/* Основной контент */
+/* ── Контейнер ─────────────────────────────────────────────── */
 .container {
     max-width: 1100px;
     margin: 0 auto;
@@ -37,7 +37,51 @@ h1 {
     color: #a89dff;
 }
 
-/* Карточки игр */
+h2 {
+    font-size: 1.3rem;
+    color: #a89dff;
+    margin-bottom: 0.8rem;
+}
+
+/* ── Поиск ──────────────────────────────────────────────────── */
+.search-form {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 2rem;
+}
+.search-input {
+    flex: 1;
+    padding: 0.65rem 1rem;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    color: #e0e0f0;
+    font-size: 1rem;
+}
+.search-input:focus {
+    outline: none;
+    border-color: #6c63ff;
+}
+.btn-search {
+    padding: 0.65rem 1.2rem;
+    background: #6c63ff;
+    color: #fff;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 1rem;
+    transition: background 0.2s;
+    white-space: nowrap;
+}
+.btn-search:hover { background: #5a52d5; }
+
+.search-info {
+    color: #9090b0;
+    margin-bottom: 1rem;
+    font-size: 0.9rem;
+}
+
+/* ── Карточки игр (каталог и поиск) ────────────────────────── */
 .game-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
@@ -61,6 +105,11 @@ h1 {
     color: #ffffff;
     margin-bottom: 0.6rem;
 }
+.game-link {
+    color: #ffffff;
+    text-decoration: none;
+}
+.game-link:hover { color: #a89dff; }
 
 .game-meta {
     display: flex;
@@ -81,12 +130,109 @@ h1 {
     overflow: hidden;
 }
 
+/* ── Детальная страница игры ────────────────────────────────── */
+.game-detail-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1.5rem;
+    margin-bottom: 1.2rem;
+}
+.game-detail-header h1 {
+    margin-bottom: 0;
+}
+
+.back-link {
+    color: #6c63ff;
+    text-decoration: none;
+    font-size: 0.9rem;
+    display: block;
+    margin-bottom: 0.4rem;
+}
+.back-link:hover { text-decoration: underline; }
+
+/* Бейдж оценки */
+.score-badge {
+    background: #1a1a2e;
+    border: 2px solid #6c63ff;
+    border-radius: 10px;
+    padding: 0.6rem 1rem;
+    text-align: center;
+    min-width: 85px;
+    flex-shrink: 0;
+}
+.score-value {
+    font-size: 1.9rem;
+    font-weight: 700;
+    color: #a89dff;
+    line-height: 1.1;
+}
+.score-label { color: #9090b0; font-size: 0.85rem; }
+.score-count { color: #9090b0; font-size: 0.75rem; margin-top: 0.2rem; }
+
+/* Группы тегов */
+.tag-group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.4rem;
+    margin-bottom: 0.5rem;
+}
+.tag-group-label {
+    color: #9090b0;
+    font-size: 0.82rem;
+    min-width: 72px;
+}
+.tag {
+    background: #2a2a4a;
+    color: #c0c0e0;
+    padding: 0.18rem 0.6rem;
+    border-radius: 20px;
+    font-size: 0.8rem;
+}
+.genre-tag   { background: #1e3060; color: #80aeff; }
+.platform-tag{ background: #1a3a2a; color: #60d090; }
+
+/* Описание */
+.game-detail-desc {
+    margin: 1.5rem 0;
+    line-height: 1.75;
+    color: #c0c0d0;
+    max-width: 720px;
+}
+
+/* Ссылки на магазины */
+.store-links { margin: 1.5rem 0; }
+.store-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+}
+.btn-store {
+    padding: 0.55rem 1.4rem;
+    background: #1c3d6a;
+    color: #7ab8ff;
+    border: 1px solid #2a5a9a;
+    border-radius: 6px;
+    text-decoration: none;
+    font-size: 0.95rem;
+    transition: background 0.2s;
+}
+.btn-store:hover { background: #254e84; }
+
+/* Похожие игры */
+.similar-games {
+    margin-top: 2.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid #2a2a4a;
+}
+
+/* ── Прочее ─────────────────────────────────────────────────── */
 .empty {
     color: #9090b0;
     font-style: italic;
 }
 
-/* Подвал */
 footer {
     text-align: center;
     padding: 1rem;

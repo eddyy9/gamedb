@@ -1,0 +1,100 @@
+{% extends "base.html" %}
+
+{% block title %}{{ game.title }} — GameDB{% endblock %}
+
+{% block content %}
+<div class="game-detail">
+
+    {# ── Заголовок + оценка ─────────────────────────────────── #}
+    <div class="game-detail-header">
+        <div>
+            <a href="{{ url_for('index') }}" class="back-link">← Каталог</a>
+            <h1>{{ game.title }}</h1>
+        </div>
+
+        {% if game.avg_score %}
+        <div class="score-badge">
+            <div><span class="score-value">{{ game.avg_score }}</span><span class="score-label"> / 10</span></div>
+            <div class="score-count">
+                {{ game.ratings_count }}
+                {% set n = game.ratings_count %}
+                {% if n % 10 == 1 and n % 100 != 11 %}оценка
+                {% elif n % 10 in [2,3,4] and n % 100 not in [12,13,14] %}оценки
+                {% else %}оценок{% endif %}
+            </div>
+        </div>
+        {% endif %}
+    </div>
+
+    {# ── Мета-строка ─────────────────────────────────────────── #}
+    <div class="game-meta">
+        {% if game.release_date %}
+        <span>📅 {{ game.release_date.strftime('%d.%m.%Y') }}</span>
+        {% endif %}
+        {% if game.developer %}
+        <span>🛠 {{ game.developer }}{% if game.developer_country %} ({{ game.developer_country }}){% endif %}</span>
+        {% endif %}
+        {% if game.publisher %}
+        <span>📦 {{ game.publisher }}</span>
+        {% endif %}
+    </div>
+
+    {# ── Платформы / Жанры / Теги ─────────────────────────────── #}
+    {% if game.platforms %}
+    <div class="tag-group">
+        <span class="tag-group-label">Платформы</span>
+        {% for pl in game.platforms %}
+        <span class="tag platform-tag">{{ pl }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if game.genres %}
+    <div class="tag-group">
+        <span class="tag-group-label">Жанры</span>
+        {% for g in game.genres %}
+        <span class="tag genre-tag">{{ g }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {% if game.tags %}
+    <div class="tag-group">
+        <span class="tag-group-label">Теги</span>
+        {% for t in game.tags %}
+        <span class="tag">#{{ t }}</span>
+        {% endfor %}
+    </div>
+    {% endif %}
+
+    {# ── Описание ─────────────────────────────────────────────── #}
+    {% if game.description %}
+    <div class="game-detail-desc">
+        <p>{{ game.description }}</p>
+    </div>
+    {% endif %}
+
+    {# ── Где купить ───────────────────────────────────────────── #}
+    {% if game.store_links %}
+    <div class="store-links">
+        <h2>🛒 Где купить</h2>
+        <div class="store-buttons">
+            {% for link in game.store_links %}
+            <a href="{{ link.url }}"
+               target="_blank" rel="noopener noreferrer"
+               class="btn-store">
+                {{ link.store_name }}
+            </a>
+            {% endfor %}
+        </div>
+    </div>
+    {% endif %}
+
+    {# ── Похожие игры (заглушка — рекомендации по тегам позже) ── #}
+    <div class="similar-games">
+        <h2>Похожие игры</h2>
+        <p class="empty">Рекомендации по тегам появятся в следующей версии.</p>
+    </div>
+
+</div>
+{% endblock %}
