@@ -25,22 +25,23 @@
 - **Без ORM** — голый psycopg 3, это учебный проект по курсу «Базы данных».
 - **Без Docker, без async, без blueprints** — один простой `app.py`.
 - **Серверный рендеринг** через Jinja2, без отдельного фронтенда.
-- **Пароли** хранятся только как хэши (Werkzeug), в коде паролей нет.
+- **Пароли** хранятся только как хэши (Werkzeug `generate_password_hash`), в коде паролей нет.
 - **Конфиг** — только через `.env`, `.env.example` в репозитории, `.env` в `.gitignore`.
+- **Текущий пользователь** — через `@app.context_processor` (inject_user): `current_user` доступен во всех шаблонах автоматически.
 
 ---
 
-## Принципы безопасности (добавлено в сессии 2)
+## Принципы безопасности
 
 | Аспект | Решение |
 |--------|---------|
-| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE на таблицах приложения; без суперправ. SQL для создания в разделе «Как применить» ниже. |
-| SECRET_KEY | `secrets.token_hex(32)`, хранится в `.env`, загружается через `os.getenv()`. |
-| Сессионные куки | `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE=False` на dev / `True` на prod (через `SESSION_COOKIE_SECURE` в `.env`). |
-| Валидация | `validators.py`: `validate_username`, `validate_email`, `validate_password`, `validate_score`, `validate_search_query`. Возвращают строку-ошибку или `None`. |
-| CSRF-токены | Добавим на этапе аутентификации. |
-| Хэширование паролей | Используем Werkzeug `generate_password_hash` / `check_password_hash`. Реализация — на этапе `/register`. |
-| Ошибки входа | При неудачном входе показывать **обобщённое** сообщение: «Неверный логин или пароль» — не раскрывать, что именно неверно. |
+| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE на таблицах приложения. SQL для создания — ниже. |
+| SECRET_KEY | `secrets.token_hex(32)`, хранится в `.env`. |
+| Сессионные куки | `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE` через `.env` (false dev / true prod). |
+| Хэширование паролей | Werkzeug `generate_password_hash` / `check_password_hash`. |
+| Ошибка входа | Обобщённое «Неверный логин или пароль» — не раскрывает, что именно неверно. |
+| Валидация | `validators.py`: username, email, password, score, search_query. |
+| CSRF | Пока не добавлен — при добавлении форм расчётов добавить Flask-WTF или ручной CSRF-токен в сессии. |
 
 ---
 
@@ -48,11 +49,11 @@
 
 | Проблема | Причина | Решение |
 |----------|---------|---------|
-| `python` не работал в терминале | Windows Store создала заглушку | Отключили псевдонимы в «Параметры → Приложения → Псевдонимы запуска» |
-| `python` и `psql` не находились | Пути не в PATH | Добавили `Python313\`, `Python313\Scripts\`, `PostgreSQL\17\bin\` |
-| `psql` не работал в новой сессии | PATH обновляется только для новых процессов | В каждом вызове добавляем `$env:Path = [Environment]::GetEnvironmentVariable(...)` |
-| Пароль psql спрашивался интерактивно | psql требует ввода по умолчанию | Используем `$env:PGPASSWORD = "..."` перед вызовом |
-| Дубль ссылки в game_store_links | Phase 2 SQL и seed_delta.sql оба вставили Dishonored | Дубль удалён; seed_delta.sql теперь с `NOT EXISTS`-проверкой |
+| `python` не работал в терминале | Windows Store-заглушка | Отключили псевдонимы запуска |
+| `python`/`psql` не находились | Пути не в PATH | Добавили Python313, Scripts, PostgreSQL\17\bin |
+| `psql` не работал в новой сессии | PATH только для новых процессов | `$env:Path = [Environment]::GetEnvironmentVariable(...)` |
+| Пароль psql спрашивался интерактивно | psql требует ввода | `$env:PGPASSWORD = "..."` |
+| Дубль ссылки в game_store_links | Phase 2 SQL и seed_delta оба вставили Dishonored | Дубль удалён; seed_delta с `NOT EXISTS`-проверкой |
 
 ---
 
@@ -60,100 +61,97 @@
 
 ```
 проект БД/
-├── app.py               # Flask-маршруты: /, /game/<id>, /search
-├── db.py                # Слой БД: get_connection(), get_all_games(),
-│                        #          get_game_by_id(), search_games()
+├── app.py               # Flask-маршруты: /, /game/<id>, /search,
+│                        #   /register, /login, /logout, /rate/<id>
+├── db.py                # Слой БД: все SQL-функции
 ├── validators.py        # Серверная валидация ввода
-├── schema.sql           # DDL 12 таблиц (включая game_store_links)
-├── seed.sql             # Канонические тестовые данные (8 игр, чистая БД)
-├── seed_delta.sql       # Дельта: добавить к существующей БД (есть Dishonored)
-├── requirements.txt     # Зафиксированные зависимости
+├── schema.sql           # DDL 12 таблиц
+├── seed.sql             # Канонические данные (8 игр, чистая БД)
+├── seed_delta.sql       # Дельта для существующей БД
+├── requirements.txt
 ├── .env                 # Конфиг (не в git)
-├── .env.example         # Шаблон конфига
+├── .env.example
 ├── .gitignore
 ├── README.md
-├── PROJECT_LOG.md       # Этот файл
+├── PROJECT_LOG.md
 ├── templates/
-│   ├── base.html        # Навигация, подвал
-│   ├── index.html       # Каталог игр + форма поиска
-│   ├── game.html        # Детальная страница игры
-│   └── search.html      # Результаты поиска
-├── static/
-│   └── style.css        # Тёмная тема + стили для новых страниц
-└── venv/                # Виртуальное окружение (не в git)
+│   ├── base.html        # Навигация (user/login/register) + флэш
+│   ├── index.html       # Каталог + поиск
+│   ├── game.html        # Карточка игры, оценки, похожие игры
+│   ├── search.html      # Результаты поиска
+│   ├── register.html    # Форма регистрации
+│   └── login.html       # Форма входа
+└── static/
+    └── style.css
 ```
+
+---
+
+## Функции db.py (актуальный список)
+
+| Функция | Описание |
+|---------|----------|
+| `get_all_games()` | Все игры с dev/pub |
+| `get_game_by_id(id)` | Карточка + жанры/теги/платформы/оценка/ссылки |
+| `search_games(query)` | ILIKE по title |
+| `create_user(u, e, ph)` | INSERT users, RETURNING user_id |
+| `get_user_by_username(u)` | Для логина (включает password_hash) |
+| `get_user_by_id(id)` | Для сессии (без хэша) |
+| `set_rating(uid, gid, score)` | INSERT ON CONFLICT DO UPDATE |
+| `get_user_rating(uid, gid)` | Оценка пользователя или None |
+| `get_similar_games(gid, limit)` | JOIN по game_tags, ORDER BY shared_tags DESC |
 
 ---
 
 ## Схема базы данных (12 таблиц)
 
 ### Каталог
-- `developers(developer_id PK, name, country)`
-- `publishers(publisher_id PK, name, country)`
-- `platforms(platform_id PK, name UNIQUE)`
-- `genres(genre_id PK, name UNIQUE)`
-- `tags(tag_id PK, name UNIQUE)`
+- `developers`, `publishers`, `platforms`, `genres`, `tags`
 - `games(game_id PK, title, release_date, description, developer_id FK, publisher_id FK)`
-- `game_platforms(game_id FK, platform_id FK)` — PK составной
-- `game_genres(game_id FK, genre_id FK)` — PK составной
-- `game_tags(game_id FK, tag_id FK)` — PK составной
-- **`game_store_links(link_id PK, game_id FK CASCADE, store_name TEXT, url TEXT)`** ← новая
+- `game_platforms`, `game_genres`, `game_tags` — многие-ко-многим
+- `game_store_links(link_id PK, game_id FK CASCADE, store_name, url)`
 
 ### Пользователи
 - `users(user_id PK, username UNIQUE, email UNIQUE, password_hash, avatar_emoji, created_at)`
 - `ratings(user_id FK, game_id FK, score CHECK 1..10, created_at)` — PK составной
 
-### Заглушки (в schema.sql, закомментированы)
-- `reviews`, `achievements`, `user_achievements`
-
 ---
 
 ## Текущее состояние проекта
 
-**Этап: Каталог с поиском и карточками игр.**
+**Этап: Каталог + Аутентификация + Оценки.**
 
-- [x] Окружение настроено (Python 3.13, PostgreSQL 17, venv, PATH)
-- [x] Git инициализирован, все фазы закоммичены
-- [x] Безопасность: SESSION_COOKIE_HTTPONLY/SAMESITE/SECURE, SECRET_KEY из .env
-- [x] `validators.py` готов для форм аутентификации
-- [x] `schema.sql` применён (12 таблиц, включая `game_store_links`)
-- [x] 8 игр в базе (Dishonored + Witcher 3 + Cyberpunk + Portal 2 + Dark Souls III + Hades + Hollow Knight + Sekiro)
-- [x] Страница `/` — каталог с поиском, названия — ссылки
-- [x] Страница `/game/<id>` — жанры, теги, платформы, оценка, кнопка «Купить»
-- [x] Страница `/search?q=...` — поиск по названию (ILIKE)
-- [x] Steam-ссылки для всех 8 игр в `game_store_links`
+- [x] Git инициализирован, 6 коммитов
+- [x] 12 таблиц, 8 игр, Steam-ссылки
+- [x] `/` — каталог, форма поиска
+- [x] `/game/<id>` — карточка, оценки 1–10, похожие игры по тегам, кнопка «Купить»
+- [x] `/search?q=...` — ILIKE-поиск
+- [x] `/register`, `/login`, `/logout` — регистрация, вход, выход
+- [x] `/rate/<id>` — оценка игры (только для авторизованных)
+- [x] `current_user` во всех шаблонах через context_processor
+- [x] Флэш-сообщения (success / error / info)
 
 **Проверить вручную:**
-1. `http://localhost:5000` — каталог 8 игр, форма поиска
-2. Клик по «Dishonored» → `/game/1` (карточка + кнопка Steam)
-3. Поиск «dark» → находит Dark Souls III и Dishonored нет (ищет по названию)
-4. Поиск «cy» → находит Cyberpunk 2077
-
-**Роль `gamedb_app`:** создать вручную (SQL ниже), затем сменить `DB_USER`/`DB_PASSWORD` в `.env`.
+1. Регистрация `/register` → автовход → флэш «Добро пожаловать!»
+2. Выход → Войти `/login` → флэш «С возвращением»
+3. Карточка игры → кнопки 1–10, нажать — оценка сохраняется (кнопка подсвечивается)
+4. Средняя оценка в бейдже обновляется после следующего входа на страницу
+5. Похожие игры: Dishonored → Dark Souls III, Hades, Hollow Knight, Sekiro (общие теги: dark, atmospheric)
+6. Незалогиненный пользователь на `/game/<id>` видит «Войдите, чтобы оценить»
 
 ---
 
-## Как создать роль gamedb_app
+## Как создать роль gamedb_app (ещё не применено)
 
 ```sql
--- Запустить в psql -U postgres -d gamedb
--- Замените 'ВАШ_ПАРОЛЬ' на желаемый пароль
-
+-- psql -U postgres -d gamedb
 CREATE ROLE gamedb_app WITH LOGIN PASSWORD 'ВАШ_ПАРОЛЬ';
-
 GRANT SELECT, INSERT, UPDATE, DELETE ON
     developers, publishers, platforms, genres, tags,
     games, game_platforms, game_genres, game_tags,
     users, ratings, game_store_links
 TO gamedb_app;
-
 GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO gamedb_app;
-```
-
-После создания обновите `.env`:
-```
-DB_USER=gamedb_app
-DB_PASSWORD=ВАШ_ПАРОЛЬ
 ```
 
 ---
@@ -161,37 +159,28 @@ DB_PASSWORD=ВАШ_ПАРОЛЬ
 ## Следующие шаги (в порядке приоритета)
 
 ### Ближайшие (следующая сессия)
-1. **Регистрация и логин** — `/register`, `/login`, `/logout`, Flask-сессии, Werkzeug-хэши.
-   Функции `db.create_user()`, `db.get_user_by_username()`.
-2. **Оценки** — форма 1–10 на странице игры, `/rate/<game_id>`, `db.set_rating()`.
-   Средняя оценка уже вычисляется в `get_game_by_id`.
-3. **Рекомендации по тегам** — заглушка в `game.html` уже есть. JOIN по `game_tags`.
+1. **Страница профиля** `/profile` — список оценённых игр пользователя, дата регистрации.
+2. **CSRF-защита** — добавить токен в формы (login, register, rate, logout) через скрытое поле + проверку в сессии. Или подключить Flask-WTF.
+3. **Пагинация каталога** — когда игр больше 20 (сейчас 8, добавим).
 
 ### Средняя очередь
-4. Пагинация каталога (когда игр станет > 20).
-5. Страница профиля пользователя.
-6. Флэш-сообщения (Flask `flash`) для подтверждений.
-
-### Поздняя очередь
-7. `reviews` — текстовые отзывы.
-8. `achievements` / `user_achievements`.
+4. Фильтры каталога по жанру / платформе / тегу.
+5. Текстовые отзывы (`reviews`).
+6. Достижения (`achievements`).
 
 ---
 
-## Как запустить проект с нуля (для справки)
+## Как запустить
 
 ```powershell
-# В папке проекта
 venv\Scripts\activate
 python app.py
-# Открыть http://localhost:5000
+# http://localhost:5000
 ```
-
-База данных уже создана и заполнена (8 игр). Повторно применять SQL не нужно.
 
 ---
 
-## История коммитов сессии 2
+## История коммитов
 
 | Хэш | Сообщение |
 |-----|-----------|
@@ -199,3 +188,5 @@ python app.py
 | `79c3109` | `feat: security hardening - session cookies, validators, secret key` |
 | `e768715` | `feat: add game_store_links table and 8-game seed data` |
 | `c68e5a2` | `feat: game detail page, search, updated catalog` |
+| `9b43cf2` | `docs: update project log after session 2` |
+| `80704bb` | `feat: user auth, ratings, similar games by tags` |
