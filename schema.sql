@@ -51,25 +51,33 @@ CREATE TABLE games (
 -- Связующие таблицы (многие-ко-многим)
 -- -------------------------------------------------------------
 
--- Игра ↔ Платформа
 CREATE TABLE game_platforms (
-    game_id     INT REFERENCES games(game_id)     ON DELETE CASCADE,
+    game_id     INT REFERENCES games(game_id)         ON DELETE CASCADE,
     platform_id INT REFERENCES platforms(platform_id) ON DELETE CASCADE,
     PRIMARY KEY (game_id, platform_id)
 );
 
--- Игра ↔ Жанр
 CREATE TABLE game_genres (
-    game_id  INT REFERENCES games(game_id)  ON DELETE CASCADE,
+    game_id  INT REFERENCES games(game_id)   ON DELETE CASCADE,
     genre_id INT REFERENCES genres(genre_id) ON DELETE CASCADE,
     PRIMARY KEY (game_id, genre_id)
 );
 
--- Игра ↔ Тег
 CREATE TABLE game_tags (
     game_id INT REFERENCES games(game_id) ON DELETE CASCADE,
     tag_id  INT REFERENCES tags(tag_id)   ON DELETE CASCADE,
     PRIMARY KEY (game_id, tag_id)
+);
+
+-- -------------------------------------------------------------
+-- Ссылки на магазины (Steam, GOG, Epic и т.д.)
+-- -------------------------------------------------------------
+
+CREATE TABLE game_store_links (
+    link_id    INT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
+    game_id    INT  NOT NULL REFERENCES games(game_id) ON DELETE CASCADE,
+    store_name TEXT NOT NULL,
+    url        TEXT NOT NULL
 );
 
 -- -------------------------------------------------------------
@@ -118,7 +126,7 @@ CREATE TABLE ratings (
 -- );
 
 -- CREATE TABLE user_achievements (
---     user_id        INT REFERENCES users(user_id)           ON DELETE CASCADE,
+--     user_id        INT REFERENCES users(user_id)              ON DELETE CASCADE,
 --     achievement_id INT REFERENCES achievements(achievement_id) ON DELETE CASCADE,
 --     unlocked_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
 --     PRIMARY KEY (user_id, achievement_id)
