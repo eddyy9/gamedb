@@ -182,7 +182,7 @@ def get_user_by_username(username):
 def get_user_by_id(user_id):
     """Возвращает пользователя по user_id (для сессии) или None."""
     sql = """
-        SELECT user_id, username, email, avatar_emoji
+        SELECT user_id, username, email, avatar_emoji, created_at
         FROM users
         WHERE user_id = %s
     """
@@ -217,6 +217,100 @@ def get_user_rating(user_id, game_id):
             cur.execute(sql, (user_id, game_id))
             row = cur.fetchone()
             return row["score"] if row else None
+
+
+# ──────────────────────────────────────────────────────────────
+# Профиль пользователя
+# ──────────────────────────────────────────────────────────────
+
+def get_user_ratings(user_id):
+    """Возвращает все игры, оценённые пользователем.
+    ORDER BY score DESC, title.
+    """
+    sql = """
+        SELECT
+            g.game_id,
+            g.title,
+            r.score,
+            r.created_at
+        FROM ratings r
+        JOIN games g USING (game_id)
+        WHERE r.user_id = %s
+        ORDER BY r.score DESC, g.title
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id,))
+            return cur.fetchall()
+
+
+def get_user_stats(user_id):
+    """Возвращает статистику пользователя: сколько игр оценено и его
+    средняя оценка. avg_score_given = None, если оценок нет.
+    """
+    sql = """
+        SELECT
+            COUNT(*)               AS games_rated,
+            ROUND(AVG(score), 1)   AS avg_score_given
+        FROM ratings
+        WHERE user_id = %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id,))
+            return cur.fetchone()
+
+
+# ──────────────────────────────────────────────────────────────
+# Каталог: справочники и фильтрация
+# ──────────────────────────────────────────────────────────────
+
+def get_all_genres():
+    """Все жанры для выпадающего списка."""
+    sql = "SELECT genre_id, name FROM genres ORDER BY name"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def get_all_tags():
+    """Все теги для выпадающего списка."""
+    sql = "SELECT tag_id, name FROM tags ORDER BY name"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def get_games_filtered(genre_id=None, tag_id=None):
+    """Возвращает игры с опциональной фильтрацией по жанру и/или тегу.
+
+    Техника: LEFT JOIN с условием на id в ON-клаузе плюс WHERE-проверка
+    «IS NULL или совпало». Параметризовано, без склейки строк SQL.
+    Оба условия применяются как AND.
+    """
+    sql = """
+        SELECT DISTINCT
+            g.game_id,
+            g.title,
+            g.release_date,
+            g.description,
+            d.name AS developer,
+            p.name AS publisher
+        FROM games g
+        LEFT JOIN developers d USING (developer_id)
+        LEFT JOIN publishers  p USING (publisher_id)
+        LEFT JOIN game_genres gg ON g.game_id = gg.game_id AND gg.genre_id = %s
+        LEFT JOIN game_tags   gt ON g.game_id = gt.game_id AND gt.tag_id   = %s
+        WHERE (%s IS NULL OR gg.genre_id IS NOT NULL)
+          AND (%s IS NULL OR gt.tag_id   IS NOT NULL)
+        ORDER BY g.title
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (genre_id, tag_id, genre_id, tag_id))
+            return cur.fetchall()
 
 
 # ──────────────────────────────────────────────────────────────

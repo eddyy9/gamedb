@@ -75,3 +75,17 @@ def validate_search_query(query: str) -> Optional[str]:
     if query and len(query) > SEARCH_MAX_LEN:
         return f"Запрос поиска: максимум {SEARCH_MAX_LEN} символов."
     return None
+
+
+# ── Фильтры (безопасное приведение к int) ────────────────────
+
+def safe_int(value, min_val: int = 1) -> Optional[int]:
+    """Преобразует входящее значение в int >= min_val.
+    Возвращает None при любой ошибке или если значение < min_val.
+    Используется для id-параметров из URL-строки запроса.
+    """
+    try:
+        v = int(value)
+        return v if v >= min_val else None
+    except (TypeError, ValueError):
+        return None

@@ -1,4 +1,6 @@
+import hmac
 import os
+import secrets
 import psycopg.errors
 from flask import (Flask, render_template, request,
                    abort, session, redirect, url_for, flash)
@@ -7,7 +9,7 @@ from dotenv import load_dotenv
 
 from validators import (validate_username, validate_email,
                         validate_password, validate_score,
-                        validate_search_query)
+                        validate_search_query, safe_int)
 import db
 
 load_dotenv()
@@ -25,7 +27,30 @@ app.config["SESSION_COOKIE_SECURE"] = (
 )
 
 
-# ── Текущий пользователь во всех шаблонах ────────────────────
+# ── CSRF ──────────────────────────────────────────────────────
+
+def get_csrf_token() -> str:
+    """Возвращает CSRF-токен из сессии; генерирует и сохраняет при первом вызове."""
+    if "csrf_token" not in session:
+        session["csrf_token"] = secrets.token_hex(32)
+    return session["csrf_token"]
+
+
+@app.before_request
+def check_csrf():
+    """Централизованная CSRF-проверка для всех мутирующих методов.
+    Сравнение через hmac.compare_digest (постоянное время, защита от timing-атак).
+    GET-формы (поиск, фильтры) не проверяются.
+    """
+    if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+        session_token = session.get("csrf_token", "")
+        form_token    = request.form.get("csrf_token", "")
+        # Пустой токен в сессии — всегда отказ
+        if not session_token or not hmac.compare_digest(session_token, form_token):
+            abort(400)
+
+
+# ── Context processors ────────────────────────────────────────
 
 @app.context_processor
 def inject_user():
@@ -36,12 +61,33 @@ def inject_user():
     return {"current_user": None}
 
 
-# ── Каталог ───────────────────────────────────────────────────
+@app.context_processor
+def inject_csrf():
+    """Прокидывает csrf_token в каждый шаблон."""
+    return {"csrf_token": get_csrf_token()}
+
+
+# ── Каталог с фильтрами ───────────────────────────────────────
 
 @app.route("/")
 def index():
-    games = db.get_all_games()
-    return render_template("index.html", games=games)
+    genre_id = safe_int(request.args.get("genre_id"))
+    tag_id   = safe_int(request.args.get("tag_id"))
+
+    if genre_id is not None or tag_id is not None:
+        games = db.get_games_filtered(genre_id=genre_id, tag_id=tag_id)
+    else:
+        games = db.get_all_games()
+
+    genres = db.get_all_genres()
+    tags   = db.get_all_tags()
+
+    return render_template("index.html",
+                           games=games,
+                           genres=genres,
+                           tags=tags,
+                           selected_genre=genre_id,
+                           selected_tag=tag_id)
 
 
 # ── Карточка игры ─────────────────────────────────────────────
@@ -96,6 +142,21 @@ def rate_game(game_id):
         flash(f"Оценка {score_raw} сохранена! ⭐", "success")
 
     return redirect(url_for("game_detail", game_id=game_id))
+
+
+# ── Профиль ───────────────────────────────────────────────────
+
+@app.route("/profile")
+def profile():
+    user_id = session.get("user_id")
+    if not user_id:
+        flash("Войдите, чтобы просмотреть профиль.", "info")
+        return redirect(url_for("login"))
+
+    ratings = db.get_user_ratings(user_id)
+    stats   = db.get_user_stats(user_id)
+
+    return render_template("profile.html", ratings=ratings, stats=stats)
 
 
 # ── Регистрация ───────────────────────────────────────────────

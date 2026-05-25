@@ -345,8 +345,107 @@ h2 { font-size: 1.25rem; color: #a89dff; margin-bottom: 0.8rem; }
 .auth-alt a { color: #6c63ff; text-decoration: none; }
 .auth-alt a:hover { text-decoration: underline; }
 
+/* ── Фильтры каталога ───────────────────────────────────────── */
+.filter-form {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+    margin-bottom: 1.5rem;
+}
+.filter-select {
+    padding: 0.6rem 0.8rem;
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 6px;
+    color: #e0e0f0;
+    font-size: 0.9rem;
+    font-family: inherit;
+    cursor: pointer;
+    min-width: 150px;
+}
+.filter-select:focus { outline: none; border-color: #6c63ff; }
+.btn-reset {
+    padding: 0.6rem 0.9rem;
+    color: #9090b0;
+    text-decoration: none;
+    font-size: 0.88rem;
+    border: 1px solid #3a3a5a;
+    border-radius: 6px;
+    transition: color 0.2s, border-color 0.2s;
+}
+.btn-reset:hover { color: #e0e0f0; border-color: #5a5a8a; }
+.filter-info { color: #9090b0; margin-bottom: 1rem; font-size: 0.9rem; }
+
+/* ── Страница профиля ───────────────────────────────────────── */
+.profile-header {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid #2a2a4a;
+    flex-wrap: wrap;
+}
+.profile-avatar { font-size: 3.5rem; line-height: 1; }
+.profile-info h1 { margin-bottom: 0.25rem; font-size: 1.75rem; }
+.profile-date    { color: #9090b0; font-size: 0.85rem; }
+
+.profile-stats {
+    display: flex;
+    gap: 1.5rem;
+    margin-left: auto;
+}
+.stat          { text-align: center; }
+.stat-value    { display: block; font-size: 1.9rem; font-weight: 700; color: #a89dff; line-height: 1.1; }
+.stat-label    { font-size: 0.75rem; color: #9090b0; }
+
+/* Список оценок в профиле */
+.ratings-list  { margin-top: 0.5rem; }
+.rating-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.65rem 0;
+    border-bottom: 1px solid #1e1e36;
+    gap: 1rem;
+}
+.rating-row:last-child { border-bottom: none; }
+.rating-title {
+    color: #e0e0f0;
+    text-decoration: none;
+    font-size: 0.95rem;
+    flex: 1;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.rating-title:hover { color: #a89dff; }
+.rating-right {
+    display: flex;
+    align-items: center;
+    gap: 0.8rem;
+    flex-shrink: 0;
+}
+.rating-score {
+    background: #6c63ff;
+    color: #fff;
+    width: 32px;
+    height: 32px;
+    border-radius: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.88rem;
+    flex-shrink: 0;
+}
+.rating-date { color: #9090b0; font-size: 0.78rem; }
+
 /* ── Прочее ─────────────────────────────────────────────────── */
 .empty { color: #9090b0; font-style: italic; }
+.empty a { color: #6c63ff; }
 
 footer {
     text-align: center;
