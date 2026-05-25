@@ -1,0 +1,40 @@
+{% extends "base.html" %}
+
+{% block title %}Регистрация — GameDB{% endblock %}
+
+{% block content %}
+<div class="auth-form">
+    <h1>Регистрация</h1>
+
+    {% if error %}
+    <div class="form-error">{{ error }}</div>
+    {% endif %}
+
+    <form method="post" novalidate>
+        <label>
+            Имя пользователя
+            <input type="text" name="username"
+                   required minlength="3" maxlength="50"
+                   autocomplete="username" autofocus>
+        </label>
+        <label>
+            Email
+            <input type="email" name="email"
+                   required maxlength="255"
+                   autocomplete="email">
+        </label>
+        <label>
+            Пароль <span class="field-hint">(минимум 8 символов)</span>
+            <input type="password" name="password"
+                   required minlength="8"
+                   autocomplete="new-password">
+        </label>
+        <button type="submit" class="btn-primary">Создать аккаунт</button>
+    </form>
+
+    <p class="auth-alt">
+        Уже есть аккаунт?
+        <a href="{{ url_for('login') }}">Войти</a>
+    </p>
+</div>
+{% endblock %}

@@ -47,7 +47,6 @@ def get_game_by_id(game_id):
     жанры, теги, платформы, средняя оценка, ссылки на магазины.
     Возвращает None, если игра не найдена.
     """
-    # Основная информация + средняя оценка
     main_sql = """
         SELECT
             g.game_id,
@@ -102,7 +101,7 @@ def get_game_by_id(game_id):
             if row is None:
                 return None
 
-            game = dict(row)  # делаем мутабельным
+            game = dict(row)
 
             cur.execute(genres_sql, (game_id,))
             game["genres"] = [r["name"] for r in cur.fetchall()]
@@ -113,8 +112,6 @@ def get_game_by_id(game_id):
             cur.execute(platforms_sql, (game_id,))
             game["platforms"] = [r["name"] for r in cur.fetchall()]
 
-            # game_store_links появится после применения Phase 2 SQL;
-            # до этого возвращаем пустой список, чтобы страница не ломалась.
             try:
                 cur.execute(store_links_sql, (game_id,))
                 game["store_links"] = cur.fetchall()
@@ -129,9 +126,7 @@ def get_game_by_id(game_id):
 # ──────────────────────────────────────────────────────────────
 
 def search_games(query):
-    """Ищет игры по названию (ILIKE, без учёта регистра).
-    Возвращает список с базовой информацией (как get_all_games).
-    """
+    """Ищет игры по названию (ILIKE, без учёта регистра)."""
     sql = """
         SELECT
             g.game_id,
@@ -149,4 +144,108 @@ def search_games(query):
     with get_connection() as conn:
         with conn.cursor() as cur:
             cur.execute(sql, (f"%{query}%",))
+            return cur.fetchall()
+
+
+# ──────────────────────────────────────────────────────────────
+# Пользователи
+# ──────────────────────────────────────────────────────────────
+
+def create_user(username, email, password_hash):
+    """Создаёт нового пользователя. Возвращает user_id.
+    Бросает psycopg.errors.UniqueViolation при дубликате username/email.
+    """
+    sql = """
+        INSERT INTO users (username, email, password_hash)
+        VALUES (%s, %s, %s)
+        RETURNING user_id
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (username, email, password_hash))
+            return cur.fetchone()["user_id"]
+
+
+def get_user_by_username(username):
+    """Возвращает пользователя по username (для логина) или None."""
+    sql = """
+        SELECT user_id, username, email, password_hash, avatar_emoji
+        FROM users
+        WHERE username = %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (username,))
+            return cur.fetchone()
+
+
+def get_user_by_id(user_id):
+    """Возвращает пользователя по user_id (для сессии) или None."""
+    sql = """
+        SELECT user_id, username, email, avatar_emoji
+        FROM users
+        WHERE user_id = %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id,))
+            return cur.fetchone()
+
+
+# ──────────────────────────────────────────────────────────────
+# Оценки
+# ──────────────────────────────────────────────────────────────
+
+def set_rating(user_id, game_id, score):
+    """Создаёт или обновляет оценку (INSERT … ON CONFLICT DO UPDATE)."""
+    sql = """
+        INSERT INTO ratings (user_id, game_id, score)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (user_id, game_id)
+        DO UPDATE SET score = EXCLUDED.score, created_at = now()
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id, game_id, score))
+
+
+def get_user_rating(user_id, game_id):
+    """Возвращает оценку пользователя для игры или None."""
+    sql = "SELECT score FROM ratings WHERE user_id = %s AND game_id = %s"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (user_id, game_id))
+            row = cur.fetchone()
+            return row["score"] if row else None
+
+
+# ──────────────────────────────────────────────────────────────
+# Рекомендации
+# ──────────────────────────────────────────────────────────────
+
+def get_similar_games(game_id, limit=4):
+    """Возвращает до limit игр с общими тегами.
+    Сортировка: больше совпадающих тегов — выше.
+    """
+    sql = """
+        SELECT
+            g.game_id,
+            g.title,
+            g.release_date,
+            d.name  AS developer,
+            COUNT(*) AS shared_tags
+        FROM games g
+        JOIN game_tags  gt ON g.game_id = gt.game_id
+        LEFT JOIN developers d USING (developer_id)
+        WHERE gt.tag_id IN (
+            SELECT tag_id FROM game_tags WHERE game_id = %s
+        )
+          AND g.game_id != %s
+        GROUP BY g.game_id, g.title, g.release_date, d.name
+        ORDER BY shared_tags DESC, g.title
+        LIMIT %s
+    """
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql, (game_id, game_id, limit))
             return cur.fetchall()
