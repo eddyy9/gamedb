@@ -55,6 +55,7 @@
 | `psql` не работал в новой сессии | PATH только для новых процессов | `$env:Path = [Environment]::GetEnvironmentVariable(...)` |
 | Пароль psql спрашивался | psql требует ввода | `$env:PGPASSWORD = "..."` |
 | Дубль ссылки в game_store_links | Phase 2 SQL и seed_delta оба вставили Dishonored | Дубль удалён; seed_delta с `NOT EXISTS` |
+| `IndeterminateDatatype` при фильтре жанра + «Все теги» | PostgreSQL не может вывести тип `NULL` в `WHERE %s IS NULL` без контекста колонки | Заменить на `%s::int IS NULL` — явный каст даёт тип, логика сохраняется |
 
 ---
 
@@ -219,3 +220,4 @@ python app.py
 | `e68db51` | `feat: user profile page /profile` |
 | `6d3c907` | `feat: CSRF protection via session token + before_request` |
 | `2bc9dce` | `feat: catalog filters by genre and tag` |
+| `e9b0565` | `fix: IndeterminateDatatype in get_games_filtered` |
