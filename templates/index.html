@@ -1,0 +1,33 @@
+{% extends "base.html" %}
+
+{% block title %}Каталог игр — GameDB{% endblock %}
+
+{% block content %}
+<h1>Каталог игр</h1>
+
+{% if games %}
+    <div class="game-grid">
+        {% for game in games %}
+        <div class="game-card">
+            <h2 class="game-title">{{ game.title }}</h2>
+            <div class="game-meta">
+                {% if game.release_date %}
+                    <span>📅 {{ game.release_date.strftime('%Y') }}</span>
+                {% endif %}
+                {% if game.developer %}
+                    <span>🛠 {{ game.developer }}</span>
+                {% endif %}
+                {% if game.publisher %}
+                    <span>📦 {{ game.publisher }}</span>
+                {% endif %}
+            </div>
+            {% if game.description %}
+                <p class="game-desc">{{ game.description }}</p>
+            {% endif %}
+        </div>
+        {% endfor %}
+    </div>
+{% else %}
+    <p class="empty">Игр пока нет. Примените seed.sql для загрузки тестовых данных.</p>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,96 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #0f0f1a;
+    color: #e0e0f0;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Навигация */
+.navbar {
+    background: #1a1a2e;
+    padding: 1rem 2rem;
+    border-bottom: 2px solid #6c63ff;
+}
+.nav-brand {
+    color: #6c63ff;
+    text-decoration: none;
+    font-size: 1.4rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+}
+
+/* Основной контент */
+.container {
+    max-width: 1100px;
+    margin: 0 auto;
+    padding: 2rem 1.5rem;
+    flex: 1;
+}
+
+h1 {
+    font-size: 2rem;
+    margin-bottom: 1.5rem;
+    color: #a89dff;
+}
+
+/* Карточки игр */
+.game-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.game-card {
+    background: #1a1a2e;
+    border: 1px solid #2a2a4a;
+    border-radius: 10px;
+    padding: 1.25rem;
+    transition: border-color 0.2s, transform 0.2s;
+}
+.game-card:hover {
+    border-color: #6c63ff;
+    transform: translateY(-3px);
+}
+
+.game-title {
+    font-size: 1.2rem;
+    color: #ffffff;
+    margin-bottom: 0.6rem;
+}
+
+.game-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 0.8rem;
+    font-size: 0.85rem;
+    color: #9090b0;
+}
+
+.game-desc {
+    font-size: 0.9rem;
+    color: #b0b0cc;
+    line-height: 1.5;
+    display: -webkit-box;
+    -webkit-line-clamp: 3;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+}
+
+.empty {
+    color: #9090b0;
+    font-style: italic;
+}
+
+/* Подвал */
+footer {
+    text-align: center;
+    padding: 1rem;
+    color: #505070;
+    font-size: 0.8rem;
+    border-top: 1px solid #1a1a2e;
+}
