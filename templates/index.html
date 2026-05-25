@@ -5,12 +5,53 @@
 {% block content %}
 <h1>Каталог игр</h1>
 
+{# ── Поиск ─────────────────────────────────────────────────── #}
 <form class="search-form" action="{{ url_for('search') }}" method="get">
     <input type="text" name="q" placeholder="Поиск по названию…" class="search-input">
     <button type="submit" class="btn-search">🔍 Найти</button>
 </form>
 
+{# ── Фильтры (GET-форма, CSRF не нужен) ────────────────────── #}
+<form class="filter-form" action="{{ url_for('index') }}" method="get">
+    <select name="genre_id" class="filter-select">
+        <option value="">Все жанры</option>
+        {% for genre in genres %}
+        <option value="{{ genre.genre_id }}"
+                {% if selected_genre == genre.genre_id %}selected{% endif %}>
+            {{ genre.name }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <select name="tag_id" class="filter-select">
+        <option value="">Все теги</option>
+        {% for tag in tags %}
+        <option value="{{ tag.tag_id }}"
+                {% if selected_tag == tag.tag_id %}selected{% endif %}>
+            #{{ tag.name }}
+        </option>
+        {% endfor %}
+    </select>
+
+    <button type="submit" class="btn-search">Показать</button>
+
+    {% if selected_genre or selected_tag %}
+    <a href="{{ url_for('index') }}" class="btn-reset">✕ Сбросить</a>
+    {% endif %}
+</form>
+
+{# ── Список игр ─────────────────────────────────────────────── #}
 {% if games %}
+    {% if selected_genre or selected_tag %}
+    <p class="filter-info">
+        Найдено: <strong>{{ games | length }}</strong>
+        {% set n = games | length %}
+        {% if n % 10 == 1 and n % 100 != 11 %}игра
+        {% elif n % 10 in [2,3,4] and n % 100 not in [12,13,14] %}игры
+        {% else %}игр{% endif %}
+    </p>
+    {% endif %}
+
     <div class="game-grid">
         {% for game in games %}
         <div class="game-card">
@@ -35,6 +76,10 @@
         </div>
         {% endfor %}
     </div>
+{% elif selected_genre or selected_tag %}
+    <p class="empty">По выбранным фильтрам ничего не найдено.
+        <a href="{{ url_for('index') }}">Сбросить фильтры</a>
+    </p>
 {% else %}
     <p class="empty">Игр пока нет. Примените seed.sql для загрузки тестовых данных.</p>
 {% endif %}
