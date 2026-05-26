@@ -345,10 +345,13 @@ def get_similar_games(game_id, limit=4):
             return cur.fetchall()
 
 
-def get_global_top(limit=4):
+def get_global_top(limit=4, exclude_user_id=None):
     """Игры с наивысшей средней оценкой от всех пользователей.
     При равенстве AVG — больше оценок выше (ORDER BY avg DESC, count DESC).
     Запасной вариант для холодного старта.
+
+    exclude_user_id — если задан, исключает игры, уже оценённые этим
+    пользователем (NOT EXISTS по ratings). Гостевой путь: None → чистый топ.
     """
     sql = """
         SELECT
@@ -360,13 +363,17 @@ def get_global_top(limit=4):
         FROM games g
         JOIN ratings r USING (game_id)
         LEFT JOIN developers d USING (developer_id)
+        WHERE (%(uid)s::int IS NULL OR NOT EXISTS (
+            SELECT 1 FROM ratings r2
+            WHERE r2.game_id = g.game_id AND r2.user_id = %(uid)s
+        ))
         GROUP BY g.game_id, g.title, d.name
         ORDER BY avg_score DESC, ratings_count DESC
-        LIMIT %s
+        LIMIT %(limit)s
     """
     with get_connection() as conn:
         with conn.cursor() as cur:
-            cur.execute(sql, (limit,))
+            cur.execute(sql, {"uid": exclude_user_id, "limit": limit})
             return cur.fetchall()
 
 
@@ -389,7 +396,8 @@ def get_recommendations(user_id, limit=4):
             cnt = cur.fetchone()["cnt"]
 
     if cnt < 3:
-        rows = get_global_top(limit)
+        # Холодный старт: global top без уже оценённых игр этого пользователя
+        rows = get_global_top(limit, exclude_user_id=user_id)
         return [dict(r, source="global") for r in rows]
 
     # Персональные рекомендации через CTE
@@ -437,24 +445,17 @@ def get_recommendations(user_id, limit=4):
     if len(personal) >= limit:
         return personal
 
-    # Дополняем global top, исключая уже показанные и оценённые игры
+    # Дополняем global top:
+    # - оценённые игры исключаются на уровне БД через exclude_user_id
+    # - уже показанные personal-игры исключаем в Python
     shown_ids = {r["game_id"] for r in personal}
-
-    rated_sql = "SELECT game_id FROM ratings WHERE user_id = %s"
-    with get_connection() as conn:
-        with conn.cursor() as cur:
-            cur.execute(rated_sql, (user_id,))
-            rated_ids = {r["game_id"] for r in cur.fetchall()}
-
-    exclude_ids = shown_ids | rated_ids
     need = limit - len(personal)
 
-    # Берём global top с запасом и фильтруем в Python
-    top_rows = get_global_top(limit + len(exclude_ids))
+    top_rows = get_global_top(limit + len(shown_ids), exclude_user_id=user_id)
     padding = [
         dict(r, source="global")
         for r in top_rows
-        if r["game_id"] not in exclude_ids
+        if r["game_id"] not in shown_ids
     ][:need]
 
     return personal + padding

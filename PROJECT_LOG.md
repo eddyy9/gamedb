@@ -104,8 +104,8 @@
 | `set_rating(uid, gid, score)` | INSERT ON CONFLICT DO UPDATE |
 | `get_user_rating(uid, gid)` | Оценка пользователя для одной игры |
 | `get_similar_games(gid, limit)` | JOIN по game_tags, ORDER BY shared_tags DESC |
-| `get_global_top(limit)` | Игры с наивысшим AVG(score), ORDER BY avg DESC / count DESC |
-| `get_recommendations(uid, limit)` | CTE taste/candidates/scored (tag-affinity = AVG−5.5); cold start → global top; поле source='personal'\|'global' |
+| `get_global_top(limit, exclude_user_id)` | Игры с наивысшим AVG(score). `exclude_user_id` — NOT EXISTS по ratings, исключает оценённые игры залогиненного пользователя; None → чистый топ для гостя |
+| `get_recommendations(uid, limit)` | CTE taste/candidates/scored (tag-affinity = AVG−5.5); cold start → global top (с exclude_user_id); padding тоже через get_global_top(exclude_user_id); поле source='personal'\|'global' |
 
 ---
 
@@ -171,9 +171,10 @@
 5. Попытка POST без CSRF (curl/Postman) → HTTP 400
 6. `/profile` без входа → redirect на `/login` с флэшем
 7. `/` без входа → блок «Популярное сейчас» (global top, до 4 карточек)
-8. Войти → оценить < 3 игр → `/` → всё ещё «Популярное сейчас»
-9. Войти → оценить ≥ 3 игр → `/` → блок «На основе ваших оценок» (personal)
+8. Войти → оценить < 3 игр → `/` → блок показывает НЕоценённые популярные игры (source=global)
+9. Войти → оценить ≥ 3 игр → `/` → блок «На основе ваших оценок» (personal), оценённых нет
 10. Войти → оценить все 8 игр → `/` → блок рекомендаций пуст (нечего рекомендовать)
+11. Войти → оценить Witcher 3 и Dark Souls III → `/` → этих двух игр НЕТ в блоке рекомендаций
 
 ---
 
@@ -230,3 +231,5 @@ python app.py
 | `2bc9dce` | `feat: catalog filters by genre and tag` |
 | `e9b0565` | `fix: IndeterminateDatatype in get_games_filtered` |
 | `6688623` | `feat: personalized recommendations on main page` |
+| `2ce267b` | `docs: update project log after session 5 (recommendations)` |
+| *(pending)* | `fix: exclude already-rated games from recommendation fallback` |
