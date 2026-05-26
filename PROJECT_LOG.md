@@ -232,4 +232,4 @@ python app.py
 | `e9b0565` | `fix: IndeterminateDatatype in get_games_filtered` |
 | `6688623` | `feat: personalized recommendations on main page` |
 | `2ce267b` | `docs: update project log after session 5 (recommendations)` |
-| *(pending)* | `fix: exclude already-rated games from recommendation fallback` |
+| `6b61128` | `fix: exclude already-rated games from recommendation fallback` |
