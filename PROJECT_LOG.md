@@ -35,7 +35,7 @@
 
 | Аспект | Решение |
 |--------|---------|
-| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE. SQL для создания — ниже. |
+| Роль БД | `gamedb_app` — только SELECT/INSERT/UPDATE/DELETE на 11 таблицах каталога + users + ratings. **Применено:** приложение подключается под `gamedb_app` (не суперпользователь, без DDL-прав). Гранты: `CONNECT ON DATABASE gamedb`, `USAGE ON SCHEMA public`, DML на таблицах, `USAGE+SELECT ON ALL SEQUENCES`. Учётка `postgres` зарезервирована для DDL/миграций. |
 | SECRET_KEY | `secrets.token_hex(32)`, хранится в `.env`. |
 | Сессионные куки | `HTTPONLY=True`, `SAMESITE=Lax`, `SECURE` через `.env`. |
 | Хэширование паролей | Werkzeug `generate_password_hash` / `check_password_hash`. |
@@ -149,9 +149,9 @@
 
 ## Текущее состояние проекта
 
-**Этап: Каталог + Аутентификация + Оценки + Профиль + CSRF + Фильтры + Рекомендации.**
+**Этап: Каталог + Аутентификация + Оценки + Профиль + CSRF + Фильтры + Рекомендации + Роль БД.**
 
-- [x] Git: 12 коммитов
+- [x] Git: 15 коммитов
 - [x] 12 таблиц, 8 игр, Steam-ссылки
 - [x] `/` — каталог с поиском, фильтрами (жанр/тег) и блоком рекомендаций
 - [x] `/game/<id>` — карточка, оценки 1–10, похожие игры, кнопка «Купить»
@@ -162,6 +162,7 @@
 - [x] CSRF: сессионный токен + `hmac.compare_digest` в `before_request`
 - [x] Фильтры каталога: жанр + тег (параметризованный SQL, `safe_int`)
 - [x] Персональные рекомендации: tag-affinity CTE + cold start fallback
+- [x] Роль БД: приложение подключается под `gamedb_app` (только DML, без DDL, не суперпользователь)
 
 **Проверить вручную:**
 1. `/` → фильтр «RPG» → 4 игры (Witcher 3, Cyberpunk, Dark Souls III, Hades)
@@ -175,21 +176,30 @@
 9. Войти → оценить ≥ 3 игр → `/` → блок «На основе ваших оценок» (personal), оценённых нет
 10. Войти → оценить все 8 игр → `/` → блок рекомендаций пуст (нечего рекомендовать)
 11. Войти → оценить Witcher 3 и Dark Souls III → `/` → этих двух игр НЕТ в блоке рекомендаций
+12. `psql -U gamedb_app -d gamedb -c "CREATE TABLE test_forbidden(id int);"` → `ERROR: permission denied` (DDL запрещён)
 
 ---
 
-## Как создать роль gamedb_app (ещё не применено)
+## Роль gamedb_app (применено в сессии 7)
+
+Роль создана и приложение переведено на неё. Учётка `postgres` — только для DDL/миграций.
 
 ```sql
--- psql -U postgres -d gamedb
-CREATE ROLE gamedb_app WITH LOGIN PASSWORD 'ВАШ_ПАРОЛЬ';
+-- Выполнено под postgres:
+CREATE ROLE gamedb_app WITH LOGIN PASSWORD '...';         -- не суперпользователь
+GRANT CONNECT ON DATABASE gamedb TO gamedb_app;
+GRANT USAGE ON SCHEMA public TO gamedb_app;
 GRANT SELECT, INSERT, UPDATE, DELETE ON
     developers, publishers, platforms, genres, tags,
     games, game_platforms, game_genres, game_tags,
     users, ratings, game_store_links
 TO gamedb_app;
-GRANT USAGE ON ALL SEQUENCES IN SCHEMA public TO gamedb_app;
+GRANT USAGE, SELECT ON ALL SEQUENCES IN SCHEMA public TO gamedb_app;
+-- Нет: SUPERUSER, CREATE, DROP, ALTER, TRUNCATE
 ```
+
+Проверено: SELECT (каталог, карточка, поиск), INSERT + sequence (регистрация),
+SELECT (профиль, рекомендации), INSERT ON CONFLICT (оценка) — всё без `permission denied`.
 
 ---
 
@@ -233,3 +243,5 @@ python app.py
 | `6688623` | `feat: personalized recommendations on main page` |
 | `2ce267b` | `docs: update project log after session 5 (recommendations)` |
 | `6b61128` | `fix: exclude already-rated games from recommendation fallback` |
+| `5240477` | `docs: update project log after session 6 (recommendation fix)` |
+| — | `feat: connect app under least-privilege role gamedb_app` |
