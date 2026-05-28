@@ -287,6 +287,33 @@ def get_all_tags():
             return cur.fetchall()
 
 
+def get_all_developers():
+    """Все разработчики для формы выбора."""
+    sql = "SELECT developer_id, name FROM developers ORDER BY name"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def get_all_publishers():
+    """Все издатели для формы выбора."""
+    sql = "SELECT publisher_id, name FROM publishers ORDER BY name"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
+def get_all_platforms():
+    """Все платформы для формы выбора."""
+    sql = "SELECT platform_id, name FROM platforms ORDER BY name"
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+            cur.execute(sql)
+            return cur.fetchall()
+
+
 def get_games_filtered(genre_id=None, tag_id=None):
     """Возвращает игры с опциональной фильтрацией по жанру и/или тегу.
 
@@ -463,3 +490,150 @@ def get_recommendations(user_id, limit=4):
     ][:need]
 
     return personal + padding
+
+
+# ──────────────────────────────────────────────────────────────
+# Администрирование — создание игры
+# ──────────────────────────────────────────────────────────────
+
+def _clean_names(names):
+    """Вспомогательная: убирает пробелы, пустые строки, дубликаты.
+    Сохраняет порядок первого появления. Возвращает список str.
+    """
+    seen = set()
+    result = []
+    for name in names:
+        name = name.strip()
+        if name and name not in seen:
+            seen.add(name)
+            result.append(name)
+    return result
+
+
+def create_game(title, release_date, description,
+                developer_id, new_developer_name,
+                publisher_id, new_publisher_name,
+                genre_ids, tag_ids, platform_ids,
+                new_genre_names, new_tag_names, new_platform_names):
+    """Создаёт новую игру со всеми связями в ОДНОЙ транзакции.
+
+    Параметры:
+      title            — строка, обязательна.
+      release_date     — строка YYYY-MM-DD или None.
+      description      — строка или None.
+      developer_id     — int id существующего разработчика или None.
+      new_developer_name — имя нового разработчика (строка); если задано,
+                           имеет приоритет над developer_id.
+      publisher_id / new_publisher_name — аналогично для издателя.
+      genre_ids        — список int id существующих жанров.
+      tag_ids          — список int id существующих тегов.
+      platform_ids     — список int id существующих платформ.
+      new_genre_names  — список строк новых жанров (find-or-create по UNIQUE name).
+      new_tag_names    — список строк новых тегов.
+      new_platform_names — список строк новых платформ.
+
+    Атомарность: если любой шаг падает — вся транзакция откатывается.
+    Возвращает game_id созданной игры.
+    """
+    new_genre_names    = _clean_names(new_genre_names)
+    new_tag_names      = _clean_names(new_tag_names)
+    new_platform_names = _clean_names(new_platform_names)
+
+    with get_connection() as conn:
+        with conn.cursor() as cur:
+
+            # a) Разрешить разработчика ─────────────────────────
+            dev_name = new_developer_name.strip() if new_developer_name else ""
+            if dev_name:
+                cur.execute(
+                    "INSERT INTO developers (name) VALUES (%s) RETURNING developer_id",
+                    (dev_name,)
+                )
+                developer_id = cur.fetchone()["developer_id"]
+            # Если dev_name пустой, используем developer_id как есть (может быть None)
+
+            # a) Разрешить издателя ──────────────────────────────
+            pub_name = new_publisher_name.strip() if new_publisher_name else ""
+            if pub_name:
+                cur.execute(
+                    "INSERT INTO publishers (name) VALUES (%s) RETURNING publisher_id",
+                    (pub_name,)
+                )
+                publisher_id = cur.fetchone()["publisher_id"]
+
+            # c) Вставить игру ───────────────────────────────────
+            cur.execute(
+                """
+                INSERT INTO games (title, release_date, description, developer_id, publisher_id)
+                VALUES (%s, %s, %s, %s, %s)
+                RETURNING game_id
+                """,
+                (title,
+                 release_date if release_date else None,
+                 description  if description  else None,
+                 developer_id,
+                 publisher_id)
+            )
+            game_id = cur.fetchone()["game_id"]
+
+            # b) Найти-или-создать жанры ─────────────────────────
+            all_genre_ids = list(genre_ids)
+            for name in new_genre_names:
+                cur.execute(
+                    """
+                    INSERT INTO genres (name) VALUES (%s)
+                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING genre_id
+                    """,
+                    (name,)
+                )
+                all_genre_ids.append(cur.fetchone()["genre_id"])
+
+            # b) Найти-или-создать теги ──────────────────────────
+            all_tag_ids = list(tag_ids)
+            for name in new_tag_names:
+                cur.execute(
+                    """
+                    INSERT INTO tags (name) VALUES (%s)
+                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING tag_id
+                    """,
+                    (name,)
+                )
+                all_tag_ids.append(cur.fetchone()["tag_id"])
+
+            # b) Найти-или-создать платформы ─────────────────────
+            all_platform_ids = list(platform_ids)
+            for name in new_platform_names:
+                cur.execute(
+                    """
+                    INSERT INTO platforms (name) VALUES (%s)
+                    ON CONFLICT (name) DO UPDATE SET name = EXCLUDED.name
+                    RETURNING platform_id
+                    """,
+                    (name,)
+                )
+                all_platform_ids.append(cur.fetchone()["platform_id"])
+
+            # d) Вставить связи (дедупликация — set) ─────────────
+            for gid in set(all_genre_ids):
+                cur.execute(
+                    "INSERT INTO game_genres (game_id, genre_id) VALUES (%s, %s)",
+                    (game_id, gid)
+                )
+
+            for tid in set(all_tag_ids):
+                cur.execute(
+                    "INSERT INTO game_tags (game_id, tag_id) VALUES (%s, %s)",
+                    (game_id, tid)
+                )
+
+            for pid in set(all_platform_ids):
+                cur.execute(
+                    "INSERT INTO game_platforms (game_id, platform_id) VALUES (%s, %s)",
+                    (game_id, pid)
+                )
+
+        # e) conn.__exit__ без исключения → автоматический COMMIT
+        #    conn.__exit__ с исключением   → автоматический ROLLBACK
+        return game_id
