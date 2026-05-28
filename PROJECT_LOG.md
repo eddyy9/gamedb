@@ -69,9 +69,10 @@
 ├── app.py               # Маршруты: /, /game/<id>, /search, /profile,
 │                        #   /register, /login, /logout, /rate/<id>,
 │                        #   /admin/add_game (GET+POST, admin_required)
+│                        #   /admin/edit_game/<id> (GET+POST, admin_required)
 │                        # CSRF: get_csrf_token(), check_csrf(), inject_csrf
 │                        # admin_required: декоратор проверки is_admin
-├── db.py                # Весь SQL: 22 функции
+├── db.py                # Весь SQL: 24 функции
 ├── validators.py        # Валидация: 6 функций + safe_int +
 │                        #   validate_game_title, validate_release_date, parse_new_names
 ├── schema.sql           # DDL 12 таблиц (users.is_admin добавлен)
@@ -87,8 +88,10 @@
 │   ├── profile.html     # Профиль: статистика + список оценённых игр
 │   ├── register.html    # Форма + CSRF
 │   ├── login.html       # Форма + CSRF
-│   └── admin_add_game.html  # Форма: title/date/desc, dev/pub (select+text),
-│                            #   genres/tags/platforms (чекбоксы + новые через запятую)
+│   ├── admin_add_game.html  # Форма: title/date/desc, dev/pub (select+text),
+│   │                        #   genres/tags/platforms (чекбоксы + новые через запятую)
+│   └── admin_edit_game.html # Та же структура, но предзаполненная: selected dev/pub,
+│                            #   checked текущие жанры/теги/платформы, value title/date/desc
 └── static/style.css
 ```
 
@@ -103,9 +106,9 @@
 | `search_games(query)` | ILIKE по title |
 | `get_all_genres()` | Все жанры для фильтра/формы |
 | `get_all_tags()` | Все теги для фильтра/формы |
-| `get_all_developers()` | Все разработчики для формы добавления игры |
-| `get_all_publishers()` | Все издатели для формы добавления игры |
-| `get_all_platforms()` | Все платформы для формы добавления игры |
+| `get_all_developers()` | Все разработчики для формы добавления/редактирования игры |
+| `get_all_publishers()` | Все издатели для формы добавления/редактирования игры |
+| `get_all_platforms()` | Все платформы для формы добавления/редактирования игры |
 | `get_games_filtered(genre_id, tag_id)` | LEFT JOIN с ON-фильтром + WHERE IS NULL-трюк |
 | `create_user(u, e, ph)` | INSERT users, RETURNING user_id |
 | `get_user_by_username(u)` | Для логина (password_hash + is_admin) |
@@ -118,6 +121,8 @@
 | `get_global_top(limit, exclude_user_id)` | Игры с наивысшим AVG(score). `exclude_user_id` — NOT EXISTS по ratings, исключает оценённые игры залогиненного пользователя; None → чистый топ для гостя |
 | `get_recommendations(uid, limit)` | CTE taste/candidates/scored (tag-affinity = AVG−5.5); cold start → global top (с exclude_user_id); padding тоже через get_global_top(exclude_user_id); поле source='personal'\|'global' |
 | `create_game(title, release_date, description, developer_id, new_developer_name, publisher_id, new_publisher_name, genre_ids, tag_ids, platform_ids, new_genre_names, new_tag_names, new_platform_names)` | **Единая транзакция** (пример ACID-атомарности): a) resolve dev/pub (создать нового или взять id); b) find-or-create жанры/теги/платформы (`INSERT … ON CONFLICT DO UPDATE SET name=EXCLUDED.name RETURNING id`); c) INSERT INTO games RETURNING game_id; d) INSERT связи в game_genres/game_tags/game_platforms (дедупликация через set); e) auto-commit через psycopg 3 context manager (`with conn:`). При любом исключении — auto-rollback. |
+| `get_game_for_edit(game_id)` | Загружает игру для формы редактирования: поля games (title, release_date, description, developer_id, publisher_id) + списки genre_ids/tag_ids/platform_ids для предотметки чекбоксов. Возвращает None, если игра не найдена. |
+| `update_game(game_id, title, release_date, description, developer_id, new_developer_name, publisher_id, new_publisher_name, genre_ids, tag_ids, platform_ids, new_genre_names, new_tag_names, new_platform_names)` | **Единая транзакция** с согласованием связей через «удалить и вставить заново»: a) resolve dev/pub (new_*_name имеет приоритет); b) UPDATE games SET …; c) find-or-create жанры/теги/платформы; d) DELETE FROM game_genres/game_tags/game_platforms WHERE game_id, затем INSERT каждого выбранного id (дедупликация через set). Auto-commit при успехе, auto-rollback при исключении. |
 
 ---
 
@@ -168,12 +173,12 @@
 
 ## Текущее состояние проекта
 
-**Этап: Каталог + Аутентификация + Оценки + Профиль + CSRF + Фильтры + Рекомендации + Роль БД + Админ-форма.**
+**Этап: Каталог + Аутентификация + Оценки + Профиль + CSRF + Фильтры + Рекомендации + Роль БД + Админ-форма + Редактирование игр.**
 
-- [x] Git: 20 коммитов
+- [x] Git: 24 коммита
 - [x] 12 таблиц, 8 игр, Steam-ссылки; `users.is_admin` добавлен
 - [x] `/` — каталог с поиском, фильтрами (жанр/тег) и блоком рекомендаций
-- [x] `/game/<id>` — карточка, оценки 1–10, похожие игры, кнопка «Купить»
+- [x] `/game/<id>` — карточка, оценки 1–10, похожие игры, кнопка «Купить»; ссылка «Редактировать» для администратора
 - [x] `/search?q=...` — ILIKE-поиск
 - [x] `/register`, `/login`, `/logout` — полная аутентификация
 - [x] `/rate/<id>` — оценка (только авторизованным)
@@ -183,6 +188,7 @@
 - [x] Персональные рекомендации: tag-affinity CTE + cold start fallback
 - [x] Роль БД: приложение подключается под `gamedb_app` (только DML, без DDL, не суперпользователь)
 - [x] **Админ-форма**: `/admin/add_game` — создание игры с выбором/созданием dev/pub, find-or-create жанры/теги/платформы, единая транзакция
+- [x] **Редактирование игр**: `/admin/edit_game/<id>` — предзаполненная форма, единая транзакция с согласованием связей через «удалить и вставить заново»
 
 **Проверить вручную:**
 1. `/` → фильтр «RPG» → 4 игры (Witcher 3, Cyberpunk, Dark Souls III, Hades)
@@ -202,6 +208,9 @@
 15. **Админ** добавляет игру: выбирает существующие жанры + вписывает 2 новых тега → игра создана, в `game_tags` нужное число строк, новые теги в таблице `tags` без дублей
 16. Добавить игру с новым разработчиком (поле «Или ввести нового») → разработчик создан в `developers`, привязан к игре
 17. Новая игра видна в каталоге `/`; `/game/<new_id>` показывает жанры/теги/платформы/разработчика
+18. **Редактирование**: Админ на `/game/<id>` видит кнопку «✏️ Редактировать» → переходит на `/admin/edit_game/<id>` → форма предзаполнена текущими значениями, текущие жанры/теги/платформы отмечены чекбоксами
+19. Сменить title, добавить жанр, снять тег, вписать новый тег → «Сохранить изменения» → redirect на `/game/<id>` с flash «обновлена»; карточка отражает все изменения; в `game_tags` корректные строки; убранный тег пропал; новый создан без дубля
+20. **Не-админ** / гость → `/admin/edit_game/<id>` → 403 / redirect на login
 
 ---
 
@@ -275,4 +284,7 @@ python app.py
 | `b5ec11c` | `feat: add get_all_developers/publishers/platforms and transactional create_game` |
 | `9a7fbc8` | `feat: admin_required decorator and /admin/add_game route (GET+POST)` |
 | `f3a962b` | `feat: admin_add_game template with find-or-create fields; admin nav link in base.html` |
-| — | `feat: admin form to add games (transactional, find-or-create)` |
+| `28a62b7` | `feat: admin form to add games (transactional, find-or-create)` |
+| `4b0b864` | `feat: get_game_for_edit and update_game (transactional reconcile)` |
+| `f967ebd` | `feat: admin edit_game routes GET+POST (admin_required, CSRF, validation)` |
+| `2357dec` | `feat: admin_edit_game template (pre-filled) + edit link in game.html for admins` |
