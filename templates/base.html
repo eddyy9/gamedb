@@ -12,6 +12,9 @@
             <a href="{{ url_for('index') }}" class="nav-brand">🎮 GameDB</a>
             <div class="nav-links">
                 {% if current_user %}
+                    {% if current_user.is_admin %}
+                    <a href="{{ url_for('admin_add_game') }}" class="btn-nav btn-nav-admin">🛠 Добавить игру</a>
+                    {% endif %}
                     <a href="{{ url_for('profile') }}" class="btn-nav">
                         {{ current_user.avatar_emoji }} {{ current_user.username }}
                     </a>
