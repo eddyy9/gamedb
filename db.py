@@ -167,9 +167,11 @@ def create_user(username, email, password_hash):
 
 
 def get_user_by_username(username):
-    """Возвращает пользователя по username (для логина) или None."""
+    """Возвращает пользователя по username (для логина) или None.
+    Включает is_admin для проверки прав доступа.
+    """
     sql = """
-        SELECT user_id, username, email, password_hash, avatar_emoji
+        SELECT user_id, username, email, password_hash, avatar_emoji, is_admin
         FROM users
         WHERE username = %s
     """
@@ -180,9 +182,11 @@ def get_user_by_username(username):
 
 
 def get_user_by_id(user_id):
-    """Возвращает пользователя по user_id (для сессии) или None."""
+    """Возвращает пользователя по user_id (для сессии) или None.
+    Включает is_admin — доступен в current_user во всех шаблонах.
+    """
     sql = """
-        SELECT user_id, username, email, avatar_emoji, created_at
+        SELECT user_id, username, email, avatar_emoji, is_admin, created_at
         FROM users
         WHERE user_id = %s
     """
