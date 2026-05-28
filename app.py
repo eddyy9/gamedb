@@ -2,6 +2,7 @@ import hmac
 import os
 import secrets
 import psycopg.errors
+from functools import wraps
 from flask import (Flask, render_template, request,
                    abort, session, redirect, url_for, flash)
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -9,7 +10,9 @@ from dotenv import load_dotenv
 
 from validators import (validate_username, validate_email,
                         validate_password, validate_score,
-                        validate_search_query, safe_int)
+                        validate_search_query, safe_int,
+                        validate_game_title, validate_release_date,
+                        parse_new_names)
 import db
 
 load_dotenv()
@@ -65,6 +68,27 @@ def inject_user():
 def inject_csrf():
     """Прокидывает csrf_token в каждый шаблон."""
     return {"csrf_token": get_csrf_token()}
+
+
+# ── Декоратор доступа администратора ─────────────────────────
+
+def admin_required(f):
+    """Ограничивает маршрут только администраторами.
+
+    - Не залогинен → flash + redirect на /login.
+    - Залогинен, но is_admin=False → 403 Forbidden.
+    """
+    @wraps(f)
+    def decorated(*args, **kwargs):
+        user_id = session.get("user_id")
+        if not user_id:
+            flash("Для доступа к этой странице необходимо войти в аккаунт.", "info")
+            return redirect(url_for("login"))
+        user = db.get_user_by_id(user_id)
+        if not user or not user.get("is_admin"):
+            abort(403)
+        return f(*args, **kwargs)
+    return decorated
 
 
 # ── Каталог с фильтрами ───────────────────────────────────────
@@ -231,6 +255,100 @@ def logout():
     session.clear()
     flash("Вы вышли из аккаунта.", "info")
     return redirect(url_for("index"))
+
+
+# ── Администрирование: добавление игры ───────────────────────
+
+@app.route("/admin/add_game", methods=["GET", "POST"])
+@admin_required
+def admin_add_game():
+    """GET — форма создания игры.
+    POST — валидация + транзакционная вставка + redirect на /game/<id>.
+    Доступ только администратору (admin_required).
+    """
+    # Данные для формы нужны и на GET, и при повторном рендере после ошибки
+    developers = db.get_all_developers()
+    publishers = db.get_all_publishers()
+    genres     = db.get_all_genres()
+    tags       = db.get_all_tags()
+    platforms  = db.get_all_platforms()
+
+    if request.method == "GET":
+        return render_template("admin_add_game.html",
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
+
+    # ── POST ─────────────────────────────────────────────────
+    # CSRF уже проверен в before_request.
+
+    title       = request.form.get("title",       "").strip()
+    release_date = request.form.get("release_date", "").strip() or None
+    description = request.form.get("description", "").strip() or None
+
+    # Разработчик / издатель
+    developer_id       = safe_int(request.form.get("developer_id"))
+    new_developer_name = request.form.get("new_developer_name", "").strip()
+    publisher_id       = safe_int(request.form.get("publisher_id"))
+    new_publisher_name = request.form.get("new_publisher_name", "").strip()
+
+    # Жанры (чекбоксы + новые через запятую)
+    genre_ids       = [safe_int(v) for v in request.form.getlist("genre_ids")]
+    genre_ids       = [g for g in genre_ids if g is not None]
+    new_genre_names = parse_new_names(request.form.get("new_genre_names", ""))
+
+    # Теги
+    tag_ids       = [safe_int(v) for v in request.form.getlist("tag_ids")]
+    tag_ids       = [t for t in tag_ids if t is not None]
+    new_tag_names = parse_new_names(request.form.get("new_tag_names", ""))
+
+    # Платформы
+    platform_ids       = [safe_int(v) for v in request.form.getlist("platform_ids")]
+    platform_ids       = [p for p in platform_ids if p is not None]
+    new_platform_names = parse_new_names(request.form.get("new_platform_names", ""))
+
+    # Валидация
+    error = validate_game_title(title)
+    if not error and release_date:
+        error = validate_release_date(release_date)
+
+    if error:
+        flash(error, "error")
+        return render_template("admin_add_game.html",
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
+
+    try:
+        game_id = db.create_game(
+            title=title,
+            release_date=release_date,
+            description=description,
+            developer_id=developer_id,
+            new_developer_name=new_developer_name,
+            publisher_id=publisher_id,
+            new_publisher_name=new_publisher_name,
+            genre_ids=genre_ids,
+            tag_ids=tag_ids,
+            platform_ids=platform_ids,
+            new_genre_names=new_genre_names,
+            new_tag_names=new_tag_names,
+            new_platform_names=new_platform_names,
+        )
+        flash(f"Игра «{title}» успешно добавлена! 🎮", "success")
+        return redirect(url_for("game_detail", game_id=game_id))
+    except Exception:
+        flash("Ошибка при сохранении игры. Транзакция отменена — данные не изменены.", "error")
+        return render_template("admin_add_game.html",
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
 
 
 if __name__ == "__main__":
