@@ -1,0 +1,177 @@
+{% extends "base.html" %}
+{% block title %}Редактировать: {{ game.title }} — GameDB Admin{% endblock %}
+
+{% block content %}
+<div class="admin-form-wrap">
+    <h1 class="page-title">✏️ Редактировать игру</h1>
+    <p class="page-subtitle">
+        <a href="{{ url_for('game_detail', game_id=game.game_id) }}" class="back-link">
+            ← Вернуться к карточке игры
+        </a>
+    </p>
+
+    <form method="post"
+          action="{{ url_for('admin_edit_game', game_id=game.game_id) }}"
+          class="admin-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+        {# ── Основные поля ──────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Основное</h2>
+
+            <div class="form-group">
+                <label for="title">Название <span class="required">*</span></label>
+                <input type="text" id="title" name="title" required maxlength="300"
+                       value="{{ game.title }}">
+            </div>
+
+            <div class="form-group">
+                <label for="release_date">Дата выхода</label>
+                <input type="date" id="release_date" name="release_date"
+                       value="{{ game.release_date.isoformat() if game.release_date else '' }}">
+            </div>
+
+            <div class="form-group">
+                <label for="description">Описание</label>
+                <textarea id="description" name="description" rows="5"
+                          placeholder="Краткое описание игры…">{{ game.description or '' }}</textarea>
+            </div>
+        </section>
+
+        {# ── Разработчик ────────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Разработчик</h2>
+
+            <div class="form-group">
+                <label for="developer_id">Выбрать существующего</label>
+                <select id="developer_id" name="developer_id">
+                    <option value="">— Не выбран —</option>
+                    {% for dev in developers %}
+                    <option value="{{ dev.developer_id }}"
+                            {% if dev.developer_id == game.developer_id %}selected{% endif %}>
+                        {{ dev.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="new_developer_name">Или ввести нового разработчика</label>
+                <input type="text" id="new_developer_name" name="new_developer_name"
+                       maxlength="200" placeholder="CD Projekt Red">
+                <small class="form-hint">Если заполнено — создаётся новый, выбор выше игнорируется.</small>
+            </div>
+        </section>
+
+        {# ── Издатель ───────────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Издатель</h2>
+
+            <div class="form-group">
+                <label for="publisher_id">Выбрать существующего</label>
+                <select id="publisher_id" name="publisher_id">
+                    <option value="">— Не выбран —</option>
+                    {% for pub in publishers %}
+                    <option value="{{ pub.publisher_id }}"
+                            {% if pub.publisher_id == game.publisher_id %}selected{% endif %}>
+                        {{ pub.name }}
+                    </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="form-group">
+                <label for="new_publisher_name">Или ввести нового издателя</label>
+                <input type="text" id="new_publisher_name" name="new_publisher_name"
+                       maxlength="200" placeholder="Bandai Namco">
+                <small class="form-hint">Если заполнено — создаётся новый, выбор выше игнорируется.</small>
+            </div>
+        </section>
+
+        {# ── Жанры ─────────────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Жанры</h2>
+
+            {% if genres %}
+            <div class="checkbox-grid">
+                {% for genre in genres %}
+                <label class="checkbox-label">
+                    <input type="checkbox" name="genre_ids" value="{{ genre.genre_id }}"
+                           {% if genre.genre_id in game.genre_ids %}checked{% endif %}>
+                    {{ genre.name }}
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-hint">Жанров пока нет — добавьте новые ниже.</p>
+            {% endif %}
+
+            <div class="form-group" style="margin-top:0.75rem">
+                <label for="new_genre_names">Новые жанры через запятую</label>
+                <input type="text" id="new_genre_names" name="new_genre_names"
+                       placeholder="Souls-like, Metroidvania">
+                <small class="form-hint">Если жанр уже существует — дубликат не создаётся.</small>
+            </div>
+        </section>
+
+        {# ── Теги ──────────────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Теги</h2>
+
+            {% if tags %}
+            <div class="checkbox-grid">
+                {% for tag in tags %}
+                <label class="checkbox-label">
+                    <input type="checkbox" name="tag_ids" value="{{ tag.tag_id }}"
+                           {% if tag.tag_id in game.tag_ids %}checked{% endif %}>
+                    {{ tag.name }}
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-hint">Тегов пока нет — добавьте новые ниже.</p>
+            {% endif %}
+
+            <div class="form-group" style="margin-top:0.75rem">
+                <label for="new_tag_names">Новые теги через запятую</label>
+                <input type="text" id="new_tag_names" name="new_tag_names"
+                       placeholder="open-world, co-op, pixel-art">
+                <small class="form-hint">Если тег уже существует — дубликат не создаётся.</small>
+            </div>
+        </section>
+
+        {# ── Платформы ─────────────────────────────────────────── #}
+        <section class="form-section">
+            <h2 class="section-title">Платформы</h2>
+
+            {% if platforms %}
+            <div class="checkbox-grid">
+                {% for platform in platforms %}
+                <label class="checkbox-label">
+                    <input type="checkbox" name="platform_ids" value="{{ platform.platform_id }}"
+                           {% if platform.platform_id in game.platform_ids %}checked{% endif %}>
+                    {{ platform.name }}
+                </label>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="empty-hint">Платформ пока нет — добавьте новые ниже.</p>
+            {% endif %}
+
+            <div class="form-group" style="margin-top:0.75rem">
+                <label for="new_platform_names">Новые платформы через запятую</label>
+                <input type="text" id="new_platform_names" name="new_platform_names"
+                       placeholder="Nintendo Switch, iOS">
+                <small class="form-hint">Если платформа уже существует — дубликат не создаётся.</small>
+            </div>
+        </section>
+
+        {# ── Отправка ──────────────────────────────────────────── #}
+        <div class="form-actions">
+            <button type="submit" class="btn btn-primary">💾 Сохранить изменения</button>
+            <a href="{{ url_for('game_detail', game_id=game.game_id) }}"
+               class="btn btn-secondary">Отмена</a>
+        </div>
+    </form>
+</div>
+{% endblock %}

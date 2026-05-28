@@ -10,6 +10,12 @@
         <div>
             <a href="{{ url_for('index') }}" class="back-link">← Каталог</a>
             <h1>{{ game.title }}</h1>
+            {% if current_user and current_user.is_admin %}
+            <a href="{{ url_for('admin_edit_game', game_id=game.game_id) }}"
+               class="btn btn-secondary" style="margin-top:0.5rem;display:inline-block">
+                ✏️ Редактировать
+            </a>
+            {% endif %}
         </div>
 
         {% if game.avg_score %}
