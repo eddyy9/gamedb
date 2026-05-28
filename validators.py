@@ -7,17 +7,19 @@ validators.py — серверная валидация входных данн�
 Используется во всех формах приложения.
 """
 
+import datetime
 import re
-from typing import Optional
+from typing import List, Optional
 
 # ── Константы ────────────────────────────────────────────────
-USERNAME_MIN_LEN = 3
-USERNAME_MAX_LEN = 50
-PASSWORD_MIN_LEN = 8
-EMAIL_MAX_LEN    = 255
-SCORE_MIN        = 1
-SCORE_MAX        = 10
-SEARCH_MAX_LEN   = 200
+USERNAME_MIN_LEN  = 3
+USERNAME_MAX_LEN  = 50
+PASSWORD_MIN_LEN  = 8
+EMAIL_MAX_LEN     = 255
+SCORE_MIN         = 1
+SCORE_MAX         = 10
+SEARCH_MAX_LEN    = 200
+GAME_TITLE_MAX_LEN = 300
 
 
 # ── Пользователь ─────────────────────────────────────────────
@@ -89,3 +91,45 @@ def safe_int(value, min_val: int = 1) -> Optional[int]:
         return v if v >= min_val else None
     except (TypeError, ValueError):
         return None
+
+
+# ── Форма добавления игры ─────────────────────────────────────
+
+def validate_game_title(title: str) -> Optional[str]:
+    """Название игры: непустое, максимальная длина совпадает со схемой БД."""
+    if not title or not title.strip():
+        return "Название игры не может быть пустым."
+    if len(title) > GAME_TITLE_MAX_LEN:
+        return f"Название игры: максимум {GAME_TITLE_MAX_LEN} символов."
+    return None
+
+
+def validate_release_date(date_str: str) -> Optional[str]:
+    """Дата выхода: формат YYYY-MM-DD (стандартный ISO, принимается PostgreSQL DATE)."""
+    try:
+        datetime.date.fromisoformat(date_str)
+        return None
+    except (ValueError, TypeError):
+        return "Неверный формат даты. Ожидается YYYY-MM-DD (например, 2015-05-19)."
+
+
+def parse_new_names(raw: str) -> List[str]:
+    """Парсит строку с именами через запятую.
+
+    Для каждого элемента: обрезает пробелы, отбрасывает пустые строки,
+    убирает дубликаты внутри одного запроса (сохраняет порядок первого
+    появления). Возвращает список строк.
+
+    Пример: "  RPG , Roguelike, rpg" → ["RPG", "Roguelike"]
+    (сравнение без учёта регистра для дедупликации)
+    """
+    if not raw:
+        return []
+    seen: set = set()
+    result: List[str] = []
+    for part in raw.split(","):
+        name = part.strip()
+        if name and name.lower() not in seen:
+            seen.add(name.lower())
+            result.append(name)
+    return result
