@@ -351,5 +351,109 @@ def admin_add_game():
                                platforms=platforms)
 
 
+# ── Администрирование: редактирование игры ───────────────────
+
+@app.route("/admin/edit_game/<int:game_id>", methods=["GET", "POST"])
+@admin_required
+def admin_edit_game(game_id):
+    """GET — форма редактирования игры, предзаполненная текущими данными.
+    POST — валидация + транзакционное обновление + redirect на /game/<id>.
+    Доступ только администратору (admin_required).
+    """
+    # Справочники нужны для рендера формы
+    developers = db.get_all_developers()
+    publishers = db.get_all_publishers()
+    genres     = db.get_all_genres()
+    tags       = db.get_all_tags()
+    platforms  = db.get_all_platforms()
+
+    # Загрузить игру — нужна и на GET, и в fallback-рендере при ошибке POST
+    game = db.get_game_for_edit(game_id)
+    if game is None:
+        flash("Игра не найдена.", "error")
+        return redirect(url_for("index"))
+
+    if request.method == "GET":
+        return render_template("admin_edit_game.html",
+                               game=game,
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
+
+    # ── POST ─────────────────────────────────────────────────
+    # CSRF уже проверен в before_request.
+
+    title        = request.form.get("title",       "").strip()
+    release_date = request.form.get("release_date", "").strip() or None
+    description  = request.form.get("description", "").strip() or None
+
+    # Разработчик / издатель
+    developer_id       = safe_int(request.form.get("developer_id"))
+    new_developer_name = request.form.get("new_developer_name", "").strip()
+    publisher_id       = safe_int(request.form.get("publisher_id"))
+    new_publisher_name = request.form.get("new_publisher_name", "").strip()
+
+    # Жанры (чекбоксы + новые через запятую)
+    genre_ids       = [safe_int(v) for v in request.form.getlist("genre_ids")]
+    genre_ids       = [g for g in genre_ids if g is not None]
+    new_genre_names = parse_new_names(request.form.get("new_genre_names", ""))
+
+    # Теги
+    tag_ids       = [safe_int(v) for v in request.form.getlist("tag_ids")]
+    tag_ids       = [t for t in tag_ids if t is not None]
+    new_tag_names = parse_new_names(request.form.get("new_tag_names", ""))
+
+    # Платформы
+    platform_ids       = [safe_int(v) for v in request.form.getlist("platform_ids")]
+    platform_ids       = [p for p in platform_ids if p is not None]
+    new_platform_names = parse_new_names(request.form.get("new_platform_names", ""))
+
+    # Валидация
+    error = validate_game_title(title)
+    if not error and release_date:
+        error = validate_release_date(release_date)
+
+    if error:
+        flash(error, "error")
+        return render_template("admin_edit_game.html",
+                               game=game,
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
+
+    try:
+        db.update_game(
+            game_id=game_id,
+            title=title,
+            release_date=release_date,
+            description=description,
+            developer_id=developer_id,
+            new_developer_name=new_developer_name,
+            publisher_id=publisher_id,
+            new_publisher_name=new_publisher_name,
+            genre_ids=genre_ids,
+            tag_ids=tag_ids,
+            platform_ids=platform_ids,
+            new_genre_names=new_genre_names,
+            new_tag_names=new_tag_names,
+            new_platform_names=new_platform_names,
+        )
+        flash(f"Игра «{title}» успешно обновлена! ✏️", "success")
+        return redirect(url_for("game_detail", game_id=game_id))
+    except Exception:
+        flash("Ошибка при сохранении изменений. Транзакция отменена — данные не изменены.", "error")
+        return render_template("admin_edit_game.html",
+                               game=game,
+                               developers=developers,
+                               publishers=publishers,
+                               genres=genres,
+                               tags=tags,
+                               platforms=platforms)
+
+
 if __name__ == "__main__":
     app.run(debug=True)
