@@ -7,3 +7,20 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+.lazyweb/
+
+# Служебные папки и файлы инструментов
+.claude/
+.idea/
+.vscode/
+GEMINI_PROMPT.md
+
+# Учебные материалы к защите — не часть проекта
+CODE_OVERVIEW.md
+DEFENSE_PLAN.md
+DEFENSE_ENCYCLOPEDIA.md
+OPERATIONS_WALKTHROUGH.md
+PSQL_HANDBOOK.md
+DB_FUNCTIONS_DEEP_DIVE.md
+REVIEW.md
+PROJECT_LOG.md
